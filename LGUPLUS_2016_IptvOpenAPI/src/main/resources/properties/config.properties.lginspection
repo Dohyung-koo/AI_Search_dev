@@ -1,0 +1,35 @@
+####################################
+# Database Connectivity Properties
+####################################
+db.driver=com.mysql.jdbc.Driver
+db.url=jdbc:mysql://172.17.27.213:3306/MANAGE
+db.username=diquest
+db.password=@!dqnlp
+
+
+db.maxActive=10
+db.maxIdle=5
+db.maxWait=-1
+db.defaultAutoCommit=false
+
+#####################################
+# Search Engine Properties (Mariner4)
+#####################################
+search.host=192.168.146.168
+search.port=5555
+
+#####################################
+# SECTION LIST
+#####################################
+section.list=LTE_CHA,LTE_REP,LTE_HLT,LTE_MOV,LTE_HVD,LTE_TMA,LTE_FOR,LTE_PLUS,LTE_KIDS,LTE_ANI,LTE_LAN,LTE_STD,LTE_PER,LTE_EDU,LTE_DOCU,LTE_MUS,LTE_LIFE,LTE_COOK,LTE_REST,LTE_TOUR,LTE_DIET,LTE_HOB,LTE_NHO,LTE_GAME,LTE_SPO,LTE_SHOP,LTE_360,LTE_ENT,LTE_NGRO
+quick.list=LTE_MOV,LTE_REP
+section_uflix.list=PKG,PKG_NAME,PKG_ACTOR,PKG_OVERSEER,PKG_KEYWORD,SER,SER_NAME,SER_ACTOR,SER_OVERSEER,SER_KEYWORD,TMA
+quick_uflix.list=UFLIX_GROUP
+section_tvg.list=PKG,SER,TMA
+quick_tvg.list=UFLIX_GROUP
+
+
+#####################################
+# was   if  log file path
+#####################################
+was_num=/VP.001

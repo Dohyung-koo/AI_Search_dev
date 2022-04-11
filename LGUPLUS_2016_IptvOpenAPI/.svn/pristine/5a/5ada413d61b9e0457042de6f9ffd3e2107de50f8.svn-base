@@ -1,0 +1,92 @@
+####################################
+# Database Connectivity Properties
+####################################
+
+# Diquest Dev
+#db.driver=com.mysql.jdbc.Driver
+#db.url=jdbc:mysql://58.72.188.195:3306/manage
+#db.username=diquest
+#db.password=ek2znptm2
+
+####################################
+
+# LGUplus Dev
+#db.driver=com.mysql.jdbc.Driver
+#db.url=jdbc:mysql://106.103.234.169:3306/manage
+#db.username=root
+#db.password=@!dqnlp
+####################################
+
+# LGUplus Inspection
+#db.driver=com.mysql.jdbc.Driverv
+#db.url=jdbc:mysql://172.17.27.213:3306/MANAGE
+#db.username=root
+#db.password=@!dqnlp
+####################################
+
+# LGUplus Common Use
+#db.driver=com.mysql.jdbc.Driverv
+#db.url=jdbc:mysql://172.17.73.60:3306/MANAGE
+#db.username=diquest
+#db.password=@!dqnlp
+####################################
+
+
+#db.driver=com.mysql.jdbc.Driver
+#db.url=jdbc:mysql://172.17.27.213:3306/MANAGE
+#db.url=jdbc:mysql://172.17.73.60:3306/MANAGE
+#db.username=diquest
+#db.password=@!dqnlp
+
+
+#db.maxActive=10
+#db.maxIdle=5
+#db.maxWait=-1
+#db.defaultAutoCommit=false
+
+#####################################
+# Search Engine Properties (Mariner4)
+#####################################
+
+# Diquest Dev
+#search.host=58.72.188.195
+
+# LGUplus Dev
+#search.host=192.168.188.151
+# LGUplus Inspection
+#search.host=106.103.234.164
+
+# LGUplus Common Use
+#search.host=192.168.146.168
+
+# Local
+#search.host=106.103.234.164
+
+
+search.host=192.168.188.151
+#search.host=192.168.146.168
+
+#search.host=192.168.188.152
+#search.host=192.168.188.182
+#search.host=192.168.188.177
+#search.host=search.host=172.17.27.215
+#search.host=192.168.188.179
+
+search.port=5555
+
+#####################################
+# ETC dictionary
+#####################################
+section.list=IPTV_TOTAL,LTE_CHA
+quick.list=IPTV_AUTO
+section_uflix.list=PKG,PKG_NAME,PKG_ACTOR,PKG_OVERSEER,PKG_KEYWORD,SER,SER_NAME,SER_ACTOR,SER_OVERSEER,SER_KEYWORD,TMA
+quick_uflix.list=UFLIX_GROUP
+section_tvg.list=PKG,SER,TMA
+quick_tvg.list=UFLIX_GROUP
+
+
+#####################################
+# was \uad6c\ubd84 if  log file path
+#####################################
+was_num=/VP.001
+keyword_byte=100

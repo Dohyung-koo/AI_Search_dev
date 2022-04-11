@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE sqlMap PUBLIC "-//ibatis.apache.org//DTD SQL Map 2.0//EN" "http://ibatis.apache.org/dtd/sql-map-2.dtd" >
+<sqlMap namespace="Popkeyword">
+
+<typeAlias alias="popkeywordVo" type="com.diquest.openapi.popkeyword.PopkeywordVO"/>
+
+<!-- 인기검색어 -->
+	<!-- 인기검색어 - 비디오포털 -->
+	<select id="getVideoPopKeyword0ld" resultClass="popkeywordVo" parameterClass="popkeywordVo">
+		<![CDATA[
+			SELECT 
+				KEYWORDS NAME,
+				COUNT(KEYWORDS) AS COUNT
+			FROM	IR01_QUERY_LOG_FULL partition($partition$)
+			WHERE
+						COLLECTION_ID IN ('VIDEO_CHANNEL','VIDEO_EVENT','VIDEO_HIT_UCC','VIDEO_VOD','VIDEO_HIGHLIGHT') 
+						AND TOTAL_RESULT_SIZE > 0
+						AND  registered BETWEEN DATE_SUB(STR_TO_DATE(#date#, '%Y%m%d%H'), INTERVAL $num$ $gubun$)
+						AND	 STR_TO_DATE(#date#, '%Y%m%d%H')
+			GROUP BY KEYWORDS	
+			ORDER BY COUNT DESC 
+		]]>
+	</select>
+	
+	<select id="getVideoPopKeyword" resultClass="popkeywordVo" parameterClass="popkeywordVo">
+		<![CDATA[
+			SELECT 
+				KEYWORD AS NAME,
+				REQUESTED AS COUNT
+			FROM	IR01_TRENDS_KEYWORD
+			WHERE
+						TRENDS_ID = 'videoPortal'
+			ORDER BY RANKING ASC
+		]]>
+	</select>
+	
+	<!-- 인기검색어 - 유플릭스-->
+	<select id="getUflixPopKeywordOld" resultClass="popkeywordVo" parameterClass="popkeywordVo">
+		<![CDATA[
+			SELECT 
+				KEYWORDS NAME,
+				COUNT(KEYWORDS) AS COUNT
+			FROM	IR01_QUERY_LOG_FULL partition($partition$)
+			WHERE
+						COLLECTION_ID IN ('UFLIX_VOD') 
+						AND TOTAL_RESULT_SIZE > 0
+						AND  registered BETWEEN DATE_SUB(STR_TO_DATE(#date#, '%Y%m%d%H'), INTERVAL $num$ $gubun$)
+						AND	 STR_TO_DATE(#date#, '%Y%m%d%H')
+			GROUP BY KEYWORDS	
+			ORDER BY COUNT DESC 
+		]]>
+	</select>
+	
+	<select id="getUflixPopKeyword" resultClass="popkeywordVo" parameterClass="popkeywordVo">
+		<![CDATA[
+			SELECT 
+				KEYWORD AS NAME,
+				REQUESTED AS COUNT
+			FROM	IR01_TRENDS_KEYWORD
+			WHERE
+						TRENDS_ID = 'uflixMobile'
+			ORDER BY RANKING ASC
+		]]>
+	</select>
+	
+</sqlMap>

@@ -1,0 +1,75 @@
+package com.diquest.openapi.iptvott.response.entity;
+
+
+import java.util.List;
+
+import org.codehaus.jackson.annotate.JsonIgnore;
+import org.codehaus.jackson.annotate.JsonProperty;
+
+import com.diquest.openapi.iptvott.response.FallbackExecution;
+import com.diquest.openapi.iptvott.response.IptvottErrorResponse;
+
+public class IptvottRespones {
+
+    private String resultCode;
+
+    @JsonProperty("ottList")
+    private OttResult_json ottList;
+    
+    @JsonProperty("resultList")
+    private Section_json resultList;
+
+    @JsonIgnore
+    private IptvottErrorResponse iptvottErrorResponse;
+    
+    @JsonIgnore
+    private String lgErrorCode;
+    
+	public String getResultCode() {
+		return resultCode;
+	}
+
+	public void setResultCode(String resultCode) {
+		this.resultCode = resultCode;
+	}
+
+    public OttResult_json getOttList() {
+		return ottList;
+	}
+
+	public void setOttList(OttResult_json ottList) {
+		this.ottList = ottList;
+	}
+
+	public Section_json getResultList() {
+		return resultList;
+	}
+
+	public void setResultList(Section_json resultList) {
+		this.resultList = resultList;
+	}
+
+	public void setIptvottErrorCode(String errorCode) {
+        IptvottErrorResponse googleErrorResponse = new IptvottErrorResponse();
+        FallbackExecution fallbackExecution = new FallbackExecution();
+        fallbackExecution.setErrorCode(errorCode);
+        googleErrorResponse.setFallbackExecution(fallbackExecution);
+        this.iptvottErrorResponse = googleErrorResponse;
+    }
+
+    public String getLgErrorCode() {
+        return lgErrorCode;
+    }
+
+    public void setLgErrorCode(String lgErrorCode) {
+        this.lgErrorCode = lgErrorCode;
+    }
+
+    public IptvottErrorResponse getIptvottErrorResponse() {
+        return iptvottErrorResponse;
+    }
+
+    public void setIptvottErrorResponse(IptvottErrorResponse iptvottErrorResponse) {
+        this.iptvottErrorResponse = iptvottErrorResponse;
+    }
+}

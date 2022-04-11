@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+		xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+		xmlns:p="http://www.springframework.org/schema/p"
+		xmlns:aop="http://www.springframework.org/schema/aop"
+		xmlns:tx="http://www.springframework.org/schema/tx"
+		xmlns:context="http://www.springframework.org/schema/context"
+		xmlns:util="http://www.springframework.org/schema/util"
+		xmlns:task="http://www.springframework.org/schema/task"
+		xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-3.0.xsd
+							http://www.springframework.org/schema/task http://www.springframework.org/schema/task/spring-task-3.0.xsd
+							http://www.springframework.org/schema/aop http://www.springframework.org/schema/aop/spring-aop-3.0.xsd
+							http://www.springframework.org/schema/tx http://www.springframework.org/schema/tx/spring-tx-3.0.xsd
+							http://www.springframework.org/schema/util http://www.springframework.org/schema/util/spring-util-3.0.xsd
+							http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context-3.0.xsd">
+
+	<!-- @annotation에 등록된 class 스캔 -->
+	<context:component-scan base-package="com.diquest.*" />
+
+	<!-- properties 설정값 가져오기 -->
+	<bean id="propertyConfigurer" class="org.springframework.beans.factory.config.PropertyPlaceholderConfigurer">
+		<property name="locations">
+			<value>classpath:properties/config.properties</value>
+		</property>
+	</bean>
+
+	<!-- DB Connection_start -->
+	
+	
+
+	
+	<!-- was 재기동시 로그 경로 폴더 만들기 -->
+	<bean id="logManager" class="com.diquest.openapi.log.LogManager" init-method="initDicLoad" >
+		<property name="wasnum" value="${was_num}" />
+		<property name="googleWasnum" value="${google_was_num}" />
+	</bean>
+	
+	<!--  20160720 제거 -->
+	<!-- 오타보정 사전 로딩 
+	<bean id="SynonymSearcher" class="com.diquest.openapi.dic.SynonymSearcher" init-method="initDicLoad">
+		<property name="synonymList" value="${synonymList.dic}" />
+		<property name="correctList" value="${correctList.dic}" />
+	</bean>
+	-->
+	
+</beans>

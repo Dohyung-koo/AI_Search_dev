@@ -1,0 +1,395 @@
+package com.diquest.openapi.iptvott;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+
+import org.apache.log4j.Logger;
+import org.codehaus.jackson.map.DeserializationConfig;
+import org.codehaus.jackson.map.ObjectMapper;
+import org.springframework.stereotype.Service;
+
+import com.diquest.ir.client.command.CommandSearchRequest;
+import com.diquest.ir.common.msg.protocol.query.Query;
+import com.diquest.ir.common.msg.protocol.query.QuerySet;
+import com.diquest.ir.common.msg.protocol.result.Result;
+import com.diquest.ir.common.msg.protocol.result.ResultSet;
+import com.diquest.openapi.iptvott.request.IptvottRequest;
+import com.diquest.openapi.iptvott.response.ErrorString;
+import com.diquest.openapi.iptvott.response.entity.IptvottRespones;
+import com.diquest.openapi.iptvott.response.entity.Iptvott_cha;
+import com.diquest.openapi.iptvott.response.entity.Iptvott_vod;
+import com.diquest.openapi.iptvott.response.entity.OttResult;
+import com.diquest.openapi.iptvott.response.entity.Section;
+
+@Service
+public class IptvottService {
+
+    public Logger logger = Logger.getLogger(this.getClass());
+
+    private String getRating(Object prInfo) {
+        String rating = "PG-13";
+        if("01".equals(prInfo)){
+            //rating = "전체";
+            rating = "PG";
+        } else if("02".equals(prInfo)){
+            //rating = "7세이상";
+            rating = "PG";
+        } else if("03".equals(prInfo)){
+            //rating = "12세이상";
+            rating = "PG-13";
+        } else if("04".equals(prInfo)){
+            //rating = "15세이상";
+            rating = "PG-13";
+        } else if("05".equals(prInfo)){
+            //rating = "19세이상";
+            rating = "NC-17";
+        } else{
+            rating = "";
+        }
+        return  rating;
+    }
+
+    public IptvottRequest stringToJson(String jsonRequest, IptvottRequest iptvottRequest) {
+        ObjectMapper objectMapper = new ObjectMapper();
+
+        objectMapper.configure(DeserializationConfig.Feature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+
+        try {
+        	iptvottRequest = objectMapper.readValue(jsonRequest , IptvottRequest.class);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        return iptvottRequest;
+
+    }
+
+
+    public String getUrl(IptvottRequest googleRequest) {
+//        String queryIntent = "";
+//
+//        if(googleRequest.getStructuredQuery() !=null){
+//            queryIntent = googleRequest.getStructuredQuery().getQueryIntent();
+//        }
+
+        String url = "";
+//        if("SWITCH_CHANNEL".equals(queryIntent)){
+//            url= googleRequest.getRequestId()+"/"+googleRequest.getLanguageCode()+"/"+googleRequest.getCustomContext();
+//            if(googleRequest.getDeviceConfig()!= null) {
+//                url += "/"+googleRequest.getDeviceConfig().getDeviceModelId();
+//            }
+//
+//            if(googleRequest.getStructuredQuery()!=null) {
+//                url +="/"+googleRequest.getStructuredQuery().getQueryIntent()
+//                        +"/"+googleRequest.getStructuredQuery().getChannelName()+"/"+googleRequest.getStructuredQuery().getChannelNumber();
+//            }
+//
+//        } else if ("ENTITY_SEARCH".equals(queryIntent) || "PLAY_TVM".equals(queryIntent) || "PLAY".equals(queryIntent)
+//                || "SEARCH".equals(queryIntent)) {
+//            url= googleRequest.getRequestId()+"/"+googleRequest.getLanguageCode()+"/"+googleRequest.getCustomContext();
+//            if(googleRequest.getDeviceConfig()!= null) {
+//                url += "/"+googleRequest.getDeviceConfig().getDeviceModelId();
+//            }
+//
+//            if(googleRequest.getStructuredQuery()!=null) {
+//                url +="/"+googleRequest.getStructuredQuery().getQueryIntent()
+//                        +"/"+googleRequest.getStructuredQuery().getSearchQuery();
+//                if(googleRequest.getStructuredQuery().getEntitiesList() !=null){
+//                    url += "/"+googleRequest.getStructuredQuery().getEntitiesStr();
+//                }
+//            }
+//
+//        }
+        return url;
+    }
+
+    public IptvottRespones searchJson(IptvottRequest iptvottRequest, int keyword_byte) {
+        IptvottRespones iptvottRespones = new IptvottRespones();
+        
+        MakeQuery makeQuery = new MakeQuery();
+        QuerySet querySet = makeQuery.makeQuerySet(iptvottRequest);
+        ResultSet resultSet = null; // ResultSet
+        Result[] resultList = null; // Result[]
+        
+        //logger.debug("[SEARCH KEYWORD] " + q);
+        //쿼리 리스트를 2개로 분류 해야하는건가??? 메소드 2개를 만드는건가?? I30_CHANNEL참고
+        CommandSearchRequest command = new CommandSearchRequest(iptvottRequest.getHost(), iptvottRequest.getPort());
+        try {
+        	System.out.println("테스트1 : "+iptvottRequest.getHost());
+        	System.out.println("테스트2 : "+iptvottRequest.getPort());
+            int rs = command.request(querySet);
+
+            if (rs >= -1) {
+                Query[] queryList = querySet.getQueryList();
+                resultSet = command.getResultSet();
+                resultList = resultSet.getResultList();
+
+                iptvottRespones = makeResponseSearchJson(iptvottRequest, queryList, resultList, iptvottRespones);
+                logger.debug("[SEARCH SUCCESS] searchJson");
+            } else {
+                logger.debug("[SEARCH FAIL] searchJson : " + rs + " - " + command.getException());
+                iptvottRespones.setIptvottErrorCode(ErrorString.GENERAL.OPERATOR_INTERNAL_ERROR);
+                iptvottRespones.setLgErrorCode(ErrorString.makeLgMarinerErrorCode(rs));
+            }
+
+        } catch (Exception e) {
+            logger.error("[EXCEPTION START] " + e.toString());
+            e.printStackTrace();
+            iptvottRespones.setIptvottErrorCode(ErrorString.GENERAL.OPERATOR_INTERNAL_ERROR);
+            //iptvottRespones.setLgErrorCode(ErrorString.makeLgServerErrorCode(queryIntent));
+
+        }
+
+        return iptvottRespones;
+        
+    }
+
+
+    private IptvottRespones makeResponseSearchJson(IptvottRequest iptvottRequest, Query[] queryList, Result[] resultArr, IptvottRespones iptvotttRespones) {
+        
+        List<OttResult> ottResultList = new ArrayList<OttResult>();
+        List<Section> resultList = new ArrayList<Section>();
+        
+        System.out.println("resultArr 갯수 : "+resultArr.length);
+        for (int i = 0; i < resultArr.length; i++) {
+        	List attList = null;
+        	Section section = new Section();
+        	
+        	String collectionName = iptvottRequest.getCollectionName();
+        	
+            Result result = resultArr[i];
+            attList =  makeIptvottJsonAtt(iptvottRequest, result, (Query) queryList[i]);
+            section.setAttList(attList);
+            
+            //section이 VOD이면 OTT_VOD, CHA이면 OTT_CHANNEL
+            if(collectionName.equals("OTT_VOD")) {
+            	section.setSectionName("VOD콘텐츠");	
+            }else {
+            	section.setSectionName("실시간채널");
+            	section.setTotcntOnAir("방송중"); //CHA인 경우 추가
+                section.setTotcntSchedule("방송중"); //CHA인 경우 추가
+            }
+            section.setTotcnt(""+result.getTotalSize());
+            section.setMaxcnt(iptvottRequest.getOutmax());
+            section.setOutcnt("1");
+            section.setPagenum(iptvottRequest.getPage());
+            section.setSort(iptvottRequest.getSort());
+            section.setOtt("");
+            
+            resultList.add(section);
+            
+            if(collectionName.equals("OTT_VOD")) {
+                //ott리스트 만들기
+                int grlCnt = resultArr[i].getGroupResults()[0].groupResultSize(); //그룹 사이즈
+                //int[] ottCntArr = resultArr[i].getGroupResults()[0].getIntValues(); //ott리스트 별 갯수
+
+    			String[] ottNmArr = new String[grlCnt];	//ott명 ->여기에 id하고 name이 다 있는건가??? name은 어디있지??? 데이터를 확인해봐야할듯
+    			
+    			char[][] charArr = resultArr[i].getGroupResults()[0].getIds();
+    			for(int k = 0; k < grlCnt; k++){
+    				OttResult ottResult = new OttResult();
+    				
+    				ottResult.setOttId(new String(charArr[k]));
+    				ottResult.setOttName(new String(charArr[k]));
+    				ottResult.setOttCount(""+resultArr[i].getGroupResults()[0].getIntValue(k));
+    				
+    				ottResultList.add(ottResult);
+    			}	
+            }
+        }
+        
+        iptvotttRespones.setResultList(resultList);
+        iptvotttRespones.setOttList(ottResultList);
+        iptvotttRespones.setResultCode("20000000");
+
+        return iptvotttRespones;
+    }
+
+
+    private List makeIptvottJsonAtt(IptvottRequest iptvottRequest, Result result, Query query) {
+        String collectionName = iptvottRequest.getCollectionName();
+        System.out.println("컬렉션 이름 : "+ collectionName);
+        System.out.println("결과 사이즈 : "+ result.getRealSize());
+        List attList = new ArrayList();
+        switch (collectionName) {
+            case "OTT_VOD":
+                for (int i = 0; i < result.getRealSize(); i++) {
+                    Iptvott_vod iptvott_vod = new Iptvott_vod();
+                    
+    				for (int k = 0; k < result.getNumField(); k++) {
+    					String selectFieldName = new String((query.getSelectFields())[k].getField());
+    					String selectFieldValue = new String(result.getResult(i, k));
+    					if (selectFieldName.equals("OTT_ALBUM_ID")) {
+    						iptvott_vod.setOttAlbumId(selectFieldValue);
+    					} else if (selectFieldName.equals("OTT_ALBUM_NAME")) {
+    						iptvott_vod.setOttAlbumName(selectFieldValue);
+    					} else if (selectFieldName.equals("OTT_ID")) {
+    						iptvott_vod.setOttId(selectFieldValue);
+    					} else if (selectFieldName.equals("OTT_NAME")) {
+    						iptvott_vod.setOttName(selectFieldValue);
+    					} else if (selectFieldName.equals("OTT_GRP_ID")) {
+    						iptvott_vod.setOttGrpId(selectFieldValue); 
+    					} else if (selectFieldName.equals("OTT_GRP_NAME")) {
+    						iptvott_vod.setOttGrpName(selectFieldValue);
+    					} else if (selectFieldName.equals("RUNTIME")) {
+    						iptvott_vod.setRunTime(selectFieldValue);
+    					} else if (selectFieldName.equals("PLAYER")) {
+    						iptvott_vod.setPlayer(selectFieldValue);
+    					} else if (selectFieldName.equals("DIRECTOR")) {
+    						iptvott_vod.setDirector(selectFieldValue);
+    					} else if (selectFieldName.equals("DISTRUBUTOR_NAME")) {
+    						iptvott_vod.setDistrubutorName(selectFieldValue);
+    					} else if (selectFieldName.equals("RELEASE_DATE")) {
+    						iptvott_vod.setReleaseDate(selectFieldValue);
+    					} else if (selectFieldName.equals("CREATE_YEAR")) {
+    						iptvott_vod.setCreateYear(selectFieldValue); 
+    					} else if (selectFieldName.equals("OTT_GENRE_NAME")) {
+    						iptvott_vod.setOttGenreName(selectFieldValue);
+    					} else if (selectFieldName.equals("RATING")) {
+    						iptvott_vod.setRating(selectFieldValue);
+    					} else if (selectFieldName.equals("PRICE")) {
+    						iptvott_vod.setPrice(selectFieldValue);
+    					} else if (selectFieldName.equals("POSTER_FILE_NAME")) {
+    						iptvott_vod.setPosterFileName(selectFieldValue);
+    					} else if (selectFieldName.equals("STILL_FILE_NAME")) {
+    						iptvott_vod.setStillFileName(selectFieldValue);
+    					} else if (selectFieldName.equals("COUNTRY_ORIGIN")) {
+    						iptvott_vod.setCountryOrigin(selectFieldValue);
+    					} else if (selectFieldName.equals("POINT")) {
+    						iptvott_vod.setPoint(selectFieldValue);
+    					} else if (selectFieldName.equals("OTT_TYPE")) {
+    						iptvott_vod.setOttType(selectFieldValue);
+    					} else if (selectFieldName.equals("LINK_URL")) {
+    						iptvott_vod.setLinkurl(selectFieldValue);
+    					} else if (selectFieldName.equals("SUPER_ID")) {
+    						iptvott_vod.setSuperId(selectFieldValue);
+    					} else if (selectFieldName.equals("RESULT_TYPE")) {
+    						iptvott_vod.setResultType(selectFieldValue);
+    					} else if (selectFieldName.equals("CAT_ID")) {
+    						iptvott_vod.setCatId(selectFieldValue);
+    					} else if (selectFieldName.equals("SERIES_NO")) {
+    						iptvott_vod.setSeriesNo(selectFieldValue);
+    					} else if (selectFieldName.equals("TITLE")) {
+    						iptvott_vod.setTitle(selectFieldValue);
+    					} else if (selectFieldName.equals("CLOSE_YN")) {
+    						iptvott_vod.setCloseYn(selectFieldValue);
+    					}
+    					//여기에 relottList도 넣어줘야 하는데 db에 데이터 어떻게 들어가있는지 확인을 하고 추가해야 할듯
+    				}
+    				attList.add(iptvott_vod);
+                }
+                //attList = extrasList;
+                break;
+            case "I30_CHANNEL":
+            	 for (int i = 0; i < result.getRealSize(); i++) {
+                     Iptvott_cha iptvott_cha = new Iptvott_cha();
+                     
+     				for (int k = 0; k < result.getNumField(); k++) {
+     					String selectFieldName = new String((query.getSelectFields())[k].getField());
+     					String selectFieldValue = new String(result.getResult(i, k));
+     					
+     					if (selectFieldName.equals("SERVICE_ID")) {
+     						iptvott_cha.setServiceId(selectFieldValue);
+     					} else if (selectFieldName.equals("SERVICE_NAME")) {
+     						iptvott_cha.setServiceName(selectFieldValue);
+     					} else if (selectFieldName.equals("SERVICE_ENG_NAME")) {
+     						iptvott_cha.setServiceEngName(selectFieldValue);
+     					} else if (selectFieldName.equals("CHANNEL_NO")) {
+     						iptvott_cha.setChannelNo(selectFieldValue);
+     					} else if (selectFieldName.equals("PROGRAM_ID")) {
+     						iptvott_cha.setProgramId(selectFieldValue);
+     					} else if (selectFieldName.equals("PROGRAM_NAME")) {
+     						iptvott_cha.setProgramName(selectFieldValue);
+     					} else if (selectFieldName.equals("THM_IMG_RL")) {
+     						iptvott_cha.setThmImgUrl(selectFieldValue);
+     					} else if (selectFieldName.equals("THM_IMG_FILE_NAME")) {
+     						iptvott_cha.setThmImgFileName(selectFieldValue);
+     					} else if (selectFieldName.equals("RATING")) {
+     						iptvott_cha.setRating(selectFieldValue);
+     					} else if (selectFieldName.equals("BROAD_TIME")) {
+     						iptvott_cha.setBroadTime(selectFieldValue);
+     					} else if (selectFieldName.equals("DAY")) {
+     						iptvott_cha.setDay(selectFieldValue);
+     					} else if (selectFieldName.equals("OVERSEER_NAME")) {
+     						iptvott_cha.setOverseerName(selectFieldValue);
+     					} else if (selectFieldName.equals("ACTOR")) {
+     						iptvott_cha.setActor(selectFieldValue);
+     					} else if (selectFieldName.equals("P_NAME")) {
+     						iptvott_cha.setpName(selectFieldValue);
+     					} else if (selectFieldName.equals("GENRE1")) {
+     						iptvott_cha.setGenre1(selectFieldValue);
+     					} else if (selectFieldName.equals("GENRE2")) {
+     						iptvott_cha.setGenre2(selectFieldValue);
+     					} else if (selectFieldName.equals("GENRE3")) {
+     						iptvott_cha.setGenre3(selectFieldValue);
+     					} else if (selectFieldName.equals("SERIES_NO")) {
+     						iptvott_cha.setSeriesNo(selectFieldValue);
+     					} else if (selectFieldName.equals("SUB_NAME")) {
+     						iptvott_cha.setSubName(selectFieldValue);
+     					} else if (selectFieldName.equals("BROAD_DATE")) {
+     						iptvott_cha.setBroadDate(selectFieldValue);
+     					} else if (selectFieldName.equals("LOCAL_AREA")) {
+     						iptvott_cha.setLocalArea(selectFieldValue);
+     					} else if (selectFieldName.equals("AV_RESOLUTION")) {
+     						iptvott_cha.setAvResolution(selectFieldValue);
+     					} else if (selectFieldName.equals("CAPTION_FLAG")) {
+     						iptvott_cha.setCaptionFlag(selectFieldValue);
+     					} else if (selectFieldName.equals("DVS_FLAG")) {
+     						iptvott_cha.setDvsFlag(selectFieldValue);
+     					} else if (selectFieldName.equals("IS51_CH")) {
+     						iptvott_cha.setIs51Ch(selectFieldValue);
+     					} else if (selectFieldName.equals("FILTERING_CODE")) {
+     						iptvott_cha.setFilteringCode(selectFieldValue);
+     					} else if (selectFieldName.equals("CHNL_KEYWORD")) {
+     						iptvott_cha.setChnlKeyword(selectFieldValue);
+     					} else if (selectFieldName.equals("CHNL_ICON_URL")) {
+     						iptvott_cha.setChnlIconUrl(selectFieldValue);
+     					} else if (selectFieldName.equals("CHNL_ICON_FILE_NAME")) {
+     						iptvott_cha.setChnlIconFileName(selectFieldValue);
+     					}
+     				}
+     				attList.add(iptvott_cha);
+                 }
+                break;
+            default:
+                break;
+        }
+        return attList;
+    }
+
+
+    /**
+     * KEYWORD 100 byte 자르기
+     *
+     * @param str
+     * @return
+     */
+    public String getByteLength(String str, int keyword_byte) {
+
+        if (str != null) {
+            str = str.trim();
+        }
+
+        int strLength = 0;
+        char tempChar[] = new char[str.length()];
+        String resultStr = str;
+
+        for (int i = 0; i < tempChar.length; i++) {
+            tempChar[i] = str.charAt(i);
+
+            if (strLength > keyword_byte) {
+                resultStr = str.substring(0, i - 1);
+                break;
+            }
+
+            if (tempChar[i] < 128) {
+                strLength++;
+            } else {
+                strLength += 2;
+            }
+        }
+
+        return resultStr;
+    }
+}

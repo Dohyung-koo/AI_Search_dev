@@ -1,0 +1,101 @@
+####################################
+# Database Connectivity Properties
+####################################
+
+# Diquest Dev
+#db.driver=com.mysql.jdbc.Driver
+#db.url=jdbc:mysql://58.72.188.195:3306/manage
+#db.username=diquest
+#db.password=ek2znptm2
+
+####################################
+
+# LGUplus Dev
+#db.driver=com.mysql.jdbc.Driver
+#db.url=jdbc:mysql://106.103.234.169:3306/manage
+#db.username=root
+#db.password=@!dqnlp
+####################################
+
+# LGUplus Inspection
+#db.driver=com.mysql.jdbc.Driverv
+#db.url=jdbc:mysql://172.17.27.213:3306/MANAGE
+#db.username=root
+#db.password=@!dqnlp
+####################################
+
+# LGUplus Common Use
+#db.driver=com.mysql.jdbc.Driverv
+#db.url=jdbc:mysql://172.17.73.60:3306/MANAGE
+#db.username=diquest
+#db.password=@!dqnlp
+####################################
+
+
+#db.driver=com.mysql.jdbc.Driver
+#db.url=jdbc:mysql://172.17.27.213:3306/MANAGE
+#db.url=jdbc:mysql://172.17.73.60:3306/MANAGE
+#db.username=diquest
+#db.password=@!dqnlp
+
+
+#db.maxActive=10
+#db.maxIdle=5
+#db.maxWait=-1
+#db.defaultAutoCommit=false
+
+#####################################
+# Search Engine Properties (Mariner4)
+#####################################
+
+# Diquest Dev
+#search.host=58.72.188.195
+
+# LGUplus Dev
+#search.host=192.168.188.151
+# LGUplus Inspection
+#search.host=106.103.234.164
+
+# LGUplus Common Use
+#search.host=192.168.146.168
+
+# Local
+#search.host=106.103.234.164
+
+search.host=172.10.100.30
+#search.host=192.168.188.151
+#search.host=192.168.146.168
+
+#search.host=192.168.188.152
+#search.host=192.168.188.182
+#search.host=192.168.188.177
+#search.host=search.host=172.17.27.215
+#search.host=192.168.188.179
+
+search.port=5555
+
+#####################################
+# ETC dictionary
+#####################################
+section.list=IPTV_TOTAL,LTE_CHA
+quick.list=IPTV_AUTO
+section_uflix.list=PKG,PKG_NAME,PKG_ACTOR,PKG_OVERSEER,PKG_KEYWORD,SER,SER_NAME,SER_ACTOR,SER_OVERSEER,SER_KEYWORD,TMA
+quick_uflix.list=UFLIX_GROUP
+section_tvg.list=PKG,SER,TMA
+quick_tvg.list=UFLIX_GROUP
+
+iptvpre.vod.select=RESULT_TYPE,CAT_GB,CAT_ID,CAT_NAME,ALBUM_ID,ALBUM_NAME,IMG_URL,IMG_FILE_NAME,SERVICE_GB,PRICE,PR_INFO,RUNTIME,IS_CAPTION,ACTOR,OVERSEER_NAME,GENRE1,GENRE2,GENRE3,SERIES_NO,POINT,BROAD_DATE,RELEASE_DATE,STARRING_ACTOR,VOICE_ACTOR,BROADCASTER,SER_CAT_ID,MULTI_MAPPING_FLAG,POSTER_FILE_URL,POSTER_FILE_NAME_10,POSTER_FILE_NAME_30,TITLE_ENG,DIRECTOR_ENG,PLAYER_ENG,CAST_NAME_ENG,CAST_NAME,TITLE_ORIGIN,WRITER_ORIGIN,PUBLIC_CNT,POINT_WATCHA,RETENTION_YN,KEYWORD,TITLE,CAST_NAME_MAX,CAST_NAME_MAX_ENG,ACT_DISP_MAX,ACT_DISP_MAX_ENG,ALBUM_NO,STILL_IMG_NAME,THEME_YN,CLOSE_YN,CUESHEET_TYPE,ACTOR_ID,CONCERT_IMG_URL,CONCERT_IMG_FILE_NAME,CUESHEET_VIDEO_TYPE,VIDEO_TYPE,RUN_TIME,NSC_GB,KIDS_GRADE
+iptvpre.vod.where=IDX_ALBUM_NAME_B,IDX_BROADCASTER_B,IDX_CAT_NAME_B,IDX_ALBUM_NAME_K,IDX_ALBUM_NAME_TW,IDX_ALBUM_NAME_TB,IDX_ALBUM_NAME_W,IDX_SECTION,IDX_CAT_NAME_K,IDX_CAT_NAME_TW,IDX_CAT_NAME_TB,IDX_CAT_NAME_F,IDX_CAT_NAME_PR,IDX_ALBUM_NAME_F,IDX_ALBUM_NAME_PR,IDX_BROADCASTER_F,IDX_WHOLE,IDX_ALBUM_NO,IDX_CAT_NAME_CHOSUNG_B,IDX_ALBUM_NAME_CHOSUNG_B,IDX_CAT_NAME_CHOSUNG_PR,IDX_ALBUM_NAME_CHOSUNG_PR,IDX_ID,IDX_MULTI_FILED,IDX_SUB_TITLE_B
+
+iptvpre.cha.select=SERVICE_ID,SERVICE_NAME,SERVICE_ENG_NAME,CHANNEL_NO,PROGRAM_ID,PROGRAM_NAME,THM_IMG_URL,THM_IMG_FILE_NAME,RATING,BROAD_TIME,DAY,OVERSEER_NAME,ACTOR,P_NAME,GENRE1,GENRE2,GENRE3,SERIES_NO,SUB_NAME,BROAD_DATE,LOCAL_AREA,AV_RESOLUTION,CAPTION_FLAG,DVS_FLAG,IS_51_CH,FILTERING_CODE,CHNL_KEYWORD,CHNL_ICON_URL,CHNL_ICON_FILE_NAME,WEIGHT	
+#idx
+iptvpre.cha.where=IDX_SERVICE_NAME_W,IDX_SERVICE_NAME_TW,IDX_SERVICE_ENG_NAME_B,IDX_PROGRAM_NAME_K,IDX_PROGRAM_NAME_TW,IDX_PROGRAM_NAME_TB,IDX_PROGRAM_NAME_F,IDX_PROGRAM_NAME_PR,IDX_GENRE3_F,IDX_SUB_NAME,IDX_SUB_NAME_TW,IDX_SUB_NAME_TB,IDX_SUB_NAME_F,IDX_SUB_NAME_PR
+
+
+
+#####################################
+# was \uad6c\ubd84 if  log file path
+#####################################
+was_num=/VP.001
+google_was_num=GOOGLE_SEARCH.001
+keyword_byte=100

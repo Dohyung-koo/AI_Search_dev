@@ -1,0 +1,86 @@
+package com.diquest.openapi.iptvott.request;
+
+
+import org.codehaus.jackson.annotate.JsonIgnoreProperties;
+
+@JsonIgnoreProperties(ignoreUnknown =  true)
+public class IptvottQuickRequest {
+	
+	private String w = "";
+	private String q = "";
+	private String outmax = "";
+    
+    private String errorCode="";
+
+    private String host = "";
+    private int port;
+    
+    
+	public String getW() {
+		return w;
+	}
+
+
+	public void setW(String w) {
+		this.w = w;
+	}
+
+
+	public String getQ() {
+		return q;
+	}
+
+
+	public void setQ(String q) {
+		this.q = q;
+	}
+
+
+	public String getOutmax() {
+		return outmax;
+	}
+
+
+	public void setOutmax(String outmax) {
+		this.outmax = outmax;
+	}
+
+
+	public String getErrorCode() {
+		return errorCode;
+	}
+
+
+	public void setErrorCode(String errorCode) {
+		this.errorCode = errorCode;
+	}
+
+
+	public String getHost() {
+		return host;
+	}
+
+
+	public void setHost(String host) {
+		this.host = host;
+	}
+
+
+	public int getPort() {
+		return port;
+	}
+
+
+	public void setPort(int port) {
+		this.port = port;
+	}
+
+
+	public boolean hasErrorResponse() {
+        if("".equals(errorCode)) {
+            return false;
+        }
+
+        return true;
+    }
+}

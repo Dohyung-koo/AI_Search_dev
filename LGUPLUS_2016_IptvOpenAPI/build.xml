@@ -1,0 +1,18 @@
+<project name="lguplus" default="dist" basedir=".">
+	<description>
+		lguplus build file
+	</description>
+	<property environment="env" />
+
+	<property name="lg" location="." />
+	<property name="lg.classes" location="${lg}/target/classes" />
+	<property name="dest" location="${lg}/dest/dq_stress.jar" />
+
+	<target name="clean">
+		<delete defaultexcludes="false" failonerror="false" includeemptydirs="true" dir="${dest}" />
+	</target>
+	
+	<target name="dist" depends="clean">
+		<jar destfile="${dest}" basedir="${lg.classes}" excludes="**/test/" />
+	</target>
+</project>

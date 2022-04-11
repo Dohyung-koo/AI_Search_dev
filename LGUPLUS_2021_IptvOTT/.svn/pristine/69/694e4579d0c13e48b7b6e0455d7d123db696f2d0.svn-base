@@ -1,0 +1,348 @@
+package com.diquest.openapi.iptvott;
+
+import java.util.ArrayList;
+
+import com.diquest.ir.common.msg.protocol.Protocol;
+import com.diquest.ir.common.msg.protocol.query.FilterSet;
+import com.diquest.ir.common.msg.protocol.query.GroupBySet;
+import com.diquest.ir.common.msg.protocol.query.OrderBySet;
+import com.diquest.ir.common.msg.protocol.query.Query;
+import com.diquest.ir.common.msg.protocol.query.QueryParser;
+import com.diquest.ir.common.msg.protocol.query.QuerySet;
+import com.diquest.ir.common.msg.protocol.query.SelectSet;
+import com.diquest.ir.common.msg.protocol.query.WhereSet;
+import com.diquest.openapi.iptvott.request.IptvottRequest;
+
+public class MakeQuery {
+    public QuerySet makeQuerySet(IptvottRequest iptvottRequest) {
+
+        //String queryIntent = googleRequest.getStructuredQuery().getQueryIntent();
+        
+        // queryIntent 하나 고정 (추가되면 사용가능)
+        int queryCount = iptvottRequest.getSection().size();
+        System.out.println("쿼리 카운트 : "+ queryCount);
+        QuerySet querySet = new QuerySet(queryCount);
+        Query[] queryArr = new Query[queryCount];
+        for(int i = 0; i < queryCount; i++) {
+        	String section = iptvottRequest.getSection().get(i);
+            String collectionName = "";
+            // collection 구분 OTT_VOD / OTT_CHANNEL
+            
+            if("IPTV_CHA".equals(section)) { //OTT_CHANNEL
+            	collectionName = "I30_CHANNEL";
+            	iptvottRequest.setOttId("");
+            } else if("IPTV_VOD".equals(section)) { //OTT_VOD
+            	collectionName = "OTT_VOD";
+            	iptvottRequest.setOttId("");
+            } else {
+            	collectionName = "OTT_VOD";
+            	iptvottRequest.setOttId(section);
+            }
+            
+            iptvottRequest.setCollectionName(collectionName);
+
+            queryArr[i] = makeQuery(iptvottRequest);
+
+            queryArr[i].setLoggable(true);
+
+            querySet.addQuery(queryArr[i]);
+        }
+
+        return querySet;
+    }
+
+    private Query makeQuery(IptvottRequest iptvottRequest) {
+        String collectionName = iptvottRequest.getCollectionName();
+
+        //이부분 "이정재 나오는 재미있는 영화 틀어줘" 하게 될 경우 어떻게 cast,genre,keyword로 나눔?? 이후에 이부분 수정해야할듯
+        //그리고 OTT_VOD인 경우 해당 ottId로 상세정보 부르는 쿼리도 만들어야함
+        String q = "";
+        if(iptvottRequest.getStructuredQuery().getNormalizedQueries().equals("")) {
+        	q = iptvottRequest.getStructuredQuery().getQuery();
+        }else {
+        	q = iptvottRequest.getStructuredQuery().getTaggedQueries();
+        }
+        iptvottRequest.getStructuredQuery().setQuery(q);
+        
+        int pagenum = Integer.valueOf(iptvottRequest.getPage());
+        int outmax = Integer.valueOf(iptvottRequest.getOutmax());
+
+        int startnum = (pagenum - 1) * outmax; // 시작번호
+        int endnum = 0;
+        endnum = startnum + outmax - 1;
+
+        SelectSet[] selectSet = makeSelectSet(iptvottRequest);
+        WhereSet[] whereSet = makeWhereSet(iptvottRequest);
+        //OrderBySet[] orderBySet = makeOrderBySet(iptvottRequest);
+        OrderBySet[] orderBySet = null;
+        FilterSet[] filterSet = null;
+        
+        if(!(iptvottRequest.getOttId().equals("") || iptvottRequest.getOttId() == null)) {
+        	filterSet = makeFilterSet(iptvottRequest);
+        }
+        
+        GroupBySet[] groupbySet = null;
+        
+        if(iptvottRequest.getCollectionName().equals("OTT_VOD")){
+            groupbySet = getGroupBySet(iptvottRequest);
+        }
+        
+        Query query = new Query("<strong>", "</strong>");
+        query.setSearchOption(Protocol.SearchOption.CACHE);
+        query.setSelect(selectSet);
+        query.setWhere(whereSet);
+        if (orderBySet != null) {
+            query.setOrderby(orderBySet);
+        }
+        if (filterSet != null) {
+            query.setFilter(filterSet);
+        }
+        if (groupbySet != null) {
+            query.setGroupBy(groupbySet);
+        }
+
+        query.setValue("synYn", "N");
+        query.setValue("searchTerm", q);
+
+        query.setFrom(collectionName);
+//        if (collectionName.equals("GOOGLE")) {
+//            query.setRankingOption((byte) Protocol.RankingOption.DOCUMENT_RANKING);
+//        }
+
+        query.setResult(startnum, endnum);
+
+        query.setDebug(true);
+        query.setPrintQuery(false);
+        query.setSearchKeyword(q);
+        query.setLogKeyword(q.toCharArray());
+
+//        // query.setLoggable(true);
+//        query.setValue("search_type", "total");
+//        // 금지어, 불용어 사용함
+//        query.setSearchOption((byte) (Protocol.SearchOption.CACHE | Protocol.SearchOption.BANNED | Protocol.SearchOption.STOPWORD));
+//        // 동의어, 유의어 확장
+//        query.setThesaurusOption((byte) (Protocol.ThesaurusOption.EQUIV_SYNONYM | Protocol.ThesaurusOption.QUASI_SYNONYM));
+//
+//        query.setValue("stcflag", "N");
+//
+//        query.setResultModifierList("video");
+//        query.setResultModifier("mixed");
+//
+//        // 오타보정 옵션s
+//        String typo = "typo";
+//        char[] modifier = query.getResultModifierList();
+//        if (modifier != null) {
+//            typo += "," + String.valueOf(modifier);
+//        }
+//        query.setResultModifierList(typo);
+//        // 알파벳 한글로 반환 | 한글오타(자소) 정정 후 반환 | | 한글오타(자소) 모든 자소를 제거 후 결과가 있으면 반환
+//        // query.setValue("typo-options","CORRECT_HANGUL_SPELL|ALPHABETS_TO_HANGUL|HANGUL_SYLLABLE_ONLY|HANGUL_TO_HANGUL");
+//        // query.setValue("typo-options","ALPHABETS_TO_HANGUL|HANGUL_SYLLABLE_ONLY|HANGUL_TO_HANGUL");
+//        query.setValue("typo-options", "ALPHABETS_TO_HANGUL|HANGUL_TO_ALPHABETS");
+//        // query.setValue("typo-correct-result-num","10");
+//        query.setValue("typo-parameters", q);
+
+		 QueryParser queryParser = new QueryParser();
+		 System.out.println("### Query : " + queryParser.queryToString(query));
+        return query;
+    }
+
+    private FilterSet[] makeFilterSet(IptvottRequest iptvottRequest) {
+        FilterSet[] filterSet = null;
+        
+        ArrayList filterList = new ArrayList();
+        filterList.add(new FilterSet(Protocol.FilterSet.OP_MATCH, "FILTER_OTT_ID", iptvottRequest.getOttId()));
+        
+		if (filterList.size() > 0) {
+		    filterSet = new FilterSet[filterList.size()];
+		    for (int i = 0; i < filterList.size(); i++) {
+		    	filterSet[i] = (FilterSet) filterList.get(i);
+		    }
+		}
+        return filterSet;
+    }
+
+    private OrderBySet[] makeOrderBySet(IptvottRequest iptvottRequest) {
+    	String sort = iptvottRequest.getSort();
+        OrderBySet[] orderBySet = null;
+        
+        ArrayList orderByList = new ArrayList();
+        
+		if(sort.equals("2")) {
+			orderByList.add(new OrderBySet(true, "SORT_", Protocol.OrderBySet.OP_POSTWEIGHT)); //가나다순 오름차순
+		} else if(sort.equals("3")) {
+			orderByList.add(new OrderBySet(false, "SORT_", Protocol.OrderBySet.OP_POSTWEIGHT)); //최신순 내림차순
+		} else {
+			//OP_POSTWEIGHT -> 필드와 가중치 이중정렬인데 필드 우선
+			//OP_PREWEIGHT -> 필드와 가중치 이중정렬인데 가중치 우선
+			//OP_NONE -> 필드로만 정렬
+			//출력된데이터를 그대로 인덱싱하는거는 false, 역순으로 인덱싱을 하면 true
+			orderByList.add(new OrderBySet(false, "WEIGHT", Protocol.OrderBySet.OP_NONE));//정확도 내림차순
+		}
+		
+        if (orderByList.size() > 0) {
+            orderBySet = new OrderBySet[orderByList.size()];
+            for (int i = 0; i < orderByList.size(); i++) {
+                orderBySet[i] = (OrderBySet) orderByList.get(i);
+            }
+        }
+
+        return orderBySet;
+    }
+
+    private WhereSet[] makeWhereSet(IptvottRequest iptvottRequest) {
+
+        WhereSet[] whereSet = null;
+        ArrayList whereList = new ArrayList();
+        //String[] sectionArr = {"LTE_MOV","LTE_CHA","LTE_ANI","LTE_REP","LTE_KIDS","LTE_LIFE",};
+        
+
+        String collectionName = iptvottRequest.getCollectionName();
+        String q = iptvottRequest.getStructuredQuery().getQuery();
+        
+        switch (collectionName)  {
+            case "OTT_VOD":
+                whereList.add(new WhereSet(Protocol.WhereSet.OP_BRACE_OPEN));
+                whereList.add(new WhereSet("IDX_OTT_ALBUM_NAME", Protocol.WhereSet.OP_HASALL, q));
+//                whereList.add(new WhereSet("IDX_OTT_GRP_NAME", Protocol.WhereSet.OP_HASALL, q));
+                whereList.add(new WhereSet(Protocol.WhereSet.OP_OR));
+                whereList.add(new WhereSet("IDX_PLAYER", Protocol.WhereSet.OP_HASALL, q));
+                whereList.add(new WhereSet(Protocol.WhereSet.OP_OR));
+                whereList.add(new WhereSet("IDX_DIRECTOR", Protocol.WhereSet.OP_HASALL, q));
+//                whereList.add(new WhereSet(Protocol.WhereSet.OP_OR));
+//                whereList.add(new WhereSet("IDX_DISTRUBUTOR_NAME", Protocol.WhereSet.OP_HASALL, q));
+//                whereList.add(new WhereSet(Protocol.WhereSet.OP_OR));
+//                whereList.add(new WhereSet("IDX_OTT_GENRE_NAME", Protocol.WhereSet.OP_HASALL, q));
+//                whereList.add(new WhereSet(Protocol.WhereSet.OP_OR));
+//                whereList.add(new WhereSet("IDX_RATING", Protocol.WhereSet.OP_HASALL, q));
+//                whereList.add(new WhereSet(Protocol.WhereSet.OP_OR));
+//                whereList.add(new WhereSet("IDX_PRICE", Protocol.WhereSet.OP_HASALL, q));
+//                whereList.add(new WhereSet(Protocol.WhereSet.OP_OR));
+//                whereList.add(new WhereSet("IDX_COUNTRY_ORIGIN", Protocol.WhereSet.OP_HASALL, q));
+//                whereList.add(new WhereSet(Protocol.WhereSet.OP_OR));
+//                whereList.add(new WhereSet("IDX_POINT", Protocol.WhereSet.OP_HASALL, q));
+                whereList.add(new WhereSet(Protocol.WhereSet.OP_BRACE_CLOSE));
+
+                break;
+             
+            case "I30_CHANNEL":
+                whereList.add(new WhereSet(Protocol.WhereSet.OP_BRACE_OPEN));
+                whereList.add(new WhereSet("IDX_PROGRAM_NAME", Protocol.WhereSet.OP_HASALL, q));
+                whereList.add(new WhereSet(Protocol.WhereSet.OP_OR));
+                whereList.add(new WhereSet("IDX_OVERSEER_NAME_D", Protocol.WhereSet.OP_HASALL, q));
+                whereList.add(new WhereSet(Protocol.WhereSet.OP_OR));
+                whereList.add(new WhereSet("IDX_ACTOR_ID", Protocol.WhereSet.OP_HASALL, q));
+                whereList.add(new WhereSet(Protocol.WhereSet.OP_OR));
+                whereList.add(new WhereSet("P_NAME_F", Protocol.WhereSet.OP_HASALL, q));
+                whereList.add(new WhereSet(Protocol.WhereSet.OP_OR));
+                whereList.add(new WhereSet("IDX_CHNL_KEYWORD", Protocol.WhereSet.OP_HASALL, q));
+                whereList.add(new WhereSet(Protocol.WhereSet.OP_BRACE_CLOSE));
+            break;
+
+            default:
+                break;
+        }
+
+        whereSet = new WhereSet[whereList.size()];
+        for (int i = 0; i < whereList.size(); i++) {
+            whereSet[i] = (WhereSet) whereList.get(i);
+        }
+
+        return whereSet;
+    }
+
+    private SelectSet[] makeSelectSet(IptvottRequest iptvottRequest) {
+
+        SelectSet[] selectSet = null;
+        ArrayList selectList = new ArrayList();
+
+        String collectionName = iptvottRequest.getCollectionName();
+        switch (collectionName) {
+            case "OTT_VOD":
+                selectList.add(new SelectSet("OTT_ALBUM_ID", Protocol.SelectSet.NONE)); //
+                selectList.add(new SelectSet("OTT_ALBUM_NAME", Protocol.SelectSet.NONE)); //
+                selectList.add(new SelectSet("OTT_ID", Protocol.SelectSet.NONE)); //
+                selectList.add(new SelectSet("OTT_NAME", Protocol.SelectSet.NONE)); //
+                selectList.add(new SelectSet("OTT_GRP_ID", Protocol.SelectSet.NONE)); //
+                selectList.add(new SelectSet("OTT_GRP_NAME", Protocol.SelectSet.NONE)); //
+                selectList.add(new SelectSet("RUNTIME", Protocol.SelectSet.NONE)); //
+                selectList.add(new SelectSet("PLAYER", Protocol.SelectSet.NONE)); //
+                selectList.add(new SelectSet("DIRECTOR", Protocol.SelectSet.NONE)); //
+                selectList.add(new SelectSet("DISTRUBUTOR_NAME", Protocol.SelectSet.NONE)); //
+                selectList.add(new SelectSet("RELEASE_DATE", Protocol.SelectSet.NONE)); //
+                selectList.add(new SelectSet("CREATE_YEAR", Protocol.SelectSet.NONE)); //
+                selectList.add(new SelectSet("OTT_GENRE_NAME", Protocol.SelectSet.NONE)); //
+                selectList.add(new SelectSet("RATING", Protocol.SelectSet.NONE)); //
+                selectList.add(new SelectSet("PRICE", Protocol.SelectSet.NONE)); //
+                selectList.add(new SelectSet("POSTER_FILE_NAME", Protocol.SelectSet.NONE)); //
+                selectList.add(new SelectSet("STILL_FILE_NAME", Protocol.SelectSet.NONE));//
+                selectList.add(new SelectSet("COUNTRY_ORIGIN", Protocol.SelectSet.NONE)); //
+                selectList.add(new SelectSet("POINT", Protocol.SelectSet.NONE)); //
+                selectList.add(new SelectSet("OTT_TYPE", Protocol.SelectSet.NONE)); //
+                selectList.add(new SelectSet("LINK_URL", Protocol.SelectSet.NONE)); //
+                selectList.add(new SelectSet("SUPER_ID", Protocol.SelectSet.NONE)); //
+                selectList.add(new SelectSet("RESULT_TYPE", Protocol.SelectSet.NONE)); //
+                selectList.add(new SelectSet("CAT_ID", Protocol.SelectSet.NONE)); //
+                selectList.add(new SelectSet("SERIES_NO", Protocol.SelectSet.NONE)); //
+                selectList.add(new SelectSet("TITLE", Protocol.SelectSet.NONE)); //
+                selectList.add(new SelectSet("CLOSE_YN", Protocol.SelectSet.NONE)); //
+                selectList.add(new SelectSet("SUB_LIST", Protocol.SelectSet.NONE)); //
+                break;
+            case "I30_CHANNEL":
+                selectList.add(new SelectSet("SERVICE_ID", Protocol.SelectSet.NONE));
+                selectList.add(new SelectSet("SERVICE_NAME", Protocol.SelectSet.NONE));
+                selectList.add(new SelectSet("SERVICE_ENG_NAME", Protocol.SelectSet.NONE));
+                selectList.add(new SelectSet("CHANNEL_NO", Protocol.SelectSet.NONE));
+                selectList.add(new SelectSet("PROGRAM_ID", Protocol.SelectSet.NONE));
+                selectList.add(new SelectSet("PROGRAM_NAME", Protocol.SelectSet.NONE));
+                selectList.add(new SelectSet("THM_IMG_URL", Protocol.SelectSet.NONE));
+                selectList.add(new SelectSet("THM_IMG_FILE_NAME", Protocol.SelectSet.NONE));
+                selectList.add(new SelectSet("RATING", Protocol.SelectSet.NONE));
+                selectList.add(new SelectSet("BROAD_TIME", Protocol.SelectSet.NONE));
+                selectList.add(new SelectSet("DAY", Protocol.SelectSet.NONE));
+                selectList.add(new SelectSet("OVERSEER_NAME", Protocol.SelectSet.NONE));
+                selectList.add(new SelectSet("ACTOR", Protocol.SelectSet.NONE));
+                selectList.add(new SelectSet("P_NAME", Protocol.SelectSet.NONE));
+                selectList.add(new SelectSet("GENRE1", Protocol.SelectSet.NONE));
+                selectList.add(new SelectSet("GENRE2", Protocol.SelectSet.NONE));
+                selectList.add(new SelectSet("GENRE3", Protocol.SelectSet.NONE));
+                selectList.add(new SelectSet("SERIES_NO", Protocol.SelectSet.NONE));
+                selectList.add(new SelectSet("SUB_NAME", Protocol.SelectSet.NONE));
+                selectList.add(new SelectSet("BROAD_DATE", Protocol.SelectSet.NONE));
+                selectList.add(new SelectSet("LOCAL_AREA", Protocol.SelectSet.NONE));
+                selectList.add(new SelectSet("AV_RESOLUTION", Protocol.SelectSet.NONE));
+                selectList.add(new SelectSet("CAPTION_FLAG", Protocol.SelectSet.NONE));
+                selectList.add(new SelectSet("DVS_FLAG", Protocol.SelectSet.NONE));
+                selectList.add(new SelectSet("IS_51_CH", Protocol.SelectSet.NONE));
+                selectList.add(new SelectSet("FILTERING_CODE", Protocol.SelectSet.NONE));
+                selectList.add(new SelectSet("CHNL_KEYWORD", Protocol.SelectSet.NONE));
+                selectList.add(new SelectSet("CHNL_ICON_URL", Protocol.SelectSet.NONE));
+                selectList.add(new SelectSet("CHNL_ICON_FILE_NAME", Protocol.SelectSet.NONE));
+                break;
+            default:
+                break;
+        }
+
+        selectSet = new SelectSet[selectList.size()];
+        for (int i = 0; i < selectList.size(); i++) {
+            selectSet[i] = (SelectSet) selectList.get(i);
+        }
+
+        return selectSet;
+    }
+    /**
+     * GroupBySet 만들기
+     *
+     * @param voSearch
+     * @return groupbySet
+     */
+    private GroupBySet[] getGroupBySet(IptvottRequest iptvottRequest) {
+
+        GroupBySet[] groupBySet = null;
+
+        groupBySet = new GroupBySet[1];
+        groupBySet[0] = new GroupBySet("GROUP_OTT_ID", (byte) (Protocol.GroupBySet.OP_COUNT | Protocol.GroupBySet.ORDER_COUNT), "ASC");
+
+        return groupBySet;
+    }
+}

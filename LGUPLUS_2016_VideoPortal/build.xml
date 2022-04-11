@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="EUC-KR" ?>
+<project name="videoBuilder" default="all" basedir=".">
+	<description>
+	</description>
+	<property environment="env" />
+	
+	<property name="home.dir" value="." />
+	<property name="lib.dir" value="${home.dir}/lib" />
+	<property name="src.dir" value="${home.dir}/src" />
+	<property name="class.dir" value="${home.dir}/bin" />
+	<property name="script.dir" value="${home.dir}/script" />
+	<property name="config.dir" value="${home.dir}/conf" />
+	<property name="dest.dir" value="${home.dir}/dist" />
+	<property name="dest.lib" value="${dest.dir}/lib/videoBuilder.jar" />
+	<property name="dest.script" value="${dest.dir}/script" />
+	<property name="dest.config" value="${dest.dir}/conf" />
+	
+	<target name="clean">
+		<delete defaultexcludes="false" failonerror="false" includeemptydirs="true" >
+			<fileset includes="**/*" dir="${dest.dir}" />
+		</delete>
+		<mkdir dir="${dest.dir}" />
+	</target>
+	
+	<target name="dist" depends="clean">
+		<jar destfile="${dest.lib}" basedir="${class.dir}" excludes="**/test/"/>
+		
+		<copy todir="${dest.dir}/lib">
+			<fileset dir="${lib.dir}">
+				<include name="**/com.google.guava_1.6.0.jar" />
+				<include name="**/commons.jar" />
+				<include name="**/dq_util.jar" />
+				<include name="**/mysql-connector-java-ga-bin.jar" />
+				<include name="**/dqdic-1.0.3.jar" />
+				<include name="**/jiana1.5.jar" />
+				<include name="**/jiana-common-result.jar" />
+				<include name="**/log4j-1.2.14.jar" />
+				<include name="**/plot2.3.jar" />
+				<include name="**/tar.jar" />
+				<include name="**/activation.jar" />
+			</fileset>
+		</copy>
+		
+		<copy todir="${dest.script}">
+			<fileset dir="${script.dir}">
+				<include name="**/*.sh" />
+			</fileset>
+		</copy>
+		<copy todir="${dest.config}">
+			<fileset dir="${config.dir}">
+				<include name="**/*.properties" />
+			</fileset>
+		</copy>
+		
+	</target>
+	<target name="all" depends="dist">
+	</target> 
+</project>

@@ -1,0 +1,1848 @@
+package com.diquest.openapi;
+
+import java.io.IOException;
+import java.io.StringWriter;
+import java.util.ArrayList;
+import java.util.List;
+
+import javax.servlet.http.HttpServletRequest;
+import javax.ws.rs.Consumes;
+import javax.ws.rs.DefaultValue;
+import javax.ws.rs.FormParam;
+import javax.ws.rs.GET;
+import javax.ws.rs.HeaderParam;
+import javax.ws.rs.POST;
+import javax.ws.rs.Path;
+import javax.ws.rs.PathParam;
+import javax.ws.rs.Produces;
+import javax.ws.rs.core.Context;
+import javax.ws.rs.core.MediaType;
+import javax.ws.rs.core.Response;
+import javax.ws.rs.core.UriInfo;
+import javax.xml.bind.JAXBContext;
+import javax.xml.bind.Marshaller;
+
+import org.apache.log4j.Logger;
+import org.codehaus.jackson.map.ObjectMapper;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
+import org.springframework.web.bind.annotation.RequestParam;
+
+import com.diquest.openapi.log.LogService;
+import com.diquest.openapi.log.LogVO;
+//import com.diquest.openapi.log.LogService;
+//import com.diquest.openapi.log.LogVO;
+import com.diquest.openapi.popkeyword.OpenAPIPopWordResponse;
+import com.diquest.openapi.popkeyword.OpenAPIPopWordResponseJson;
+import com.diquest.openapi.popkeyword.PopkeywordService;
+import com.diquest.openapi.popkeyword.PopkeywordVO;
+import com.diquest.openapi.search.SearchService;
+import com.diquest.openapi.uflixpotal.OpenAPIUflixQuickResponse;
+import com.diquest.openapi.uflixpotal.OpenAPIUflixQuickResponseJson;
+import com.diquest.openapi.uflixpotal.OpenAPIUflixResponse;
+import com.diquest.openapi.uflixpotal.OpenAPIUflixResponseJson;
+import com.diquest.openapi.uflixpotal.UflixService;
+import com.diquest.openapi.util.Json_Error;
+import com.diquest.openapi.util.OpenAPIErrorResponse;
+import com.diquest.openapi.util.OpenAPIErrorResponseJson;
+import com.diquest.openapi.util.Suberror;
+import com.diquest.openapi.util.UtilManager;
+import com.diquest.openapi.util.info.ERROR_TYPE;
+import com.diquest.openapi.videopotal.VideoVO;
+
+import java.io.Writer;
+
+import com.sun.xml.bind.marshaller.CharacterEscapeHandler;
+
+@Component
+@Path("/")
+public class OpenAPI {
+	@Autowired
+	SearchService searchService;
+	
+	@Autowired
+	UflixService uflixService;
+	
+	@Autowired
+	PopkeywordService popService;
+	
+	@Autowired
+	LogService logService;
+	
+	@Value("${was_num}") private String was_num;
+	@Value("${search.host}") private String searchHost;
+	@Value("${search.port}") private int searchPort;
+	
+	@Value("${section_uflix.list}") private String sectionUflixList;
+	@Value("${quick_uflix.list}") private String quickUflixList;
+	
+	public Logger logger = Logger.getLogger(this.getClass());
+	
+//	private final String searchRequestURL                 = "/video";
+	private final String searchUflixRequestURL         = "/search/uflixm/total";
+	private final String searchPopWordUflixRequestURL = "/popkeyword/uflixm/keyword";
+	private final String searchTestRequestURL = "/wastest";
+	private final String videoHangCheckRequestURL = "/uflixMobile/HangCheck";
+	private final String aliveCheckMessage = "Alive ACK!!!!";
+	private final String aliveCheckResponseMessage = "I'm Alive";
+	
+	///////////////////////////////////////////// 관리도구 /////////////////////////////////////////////
+	
+	/**
+	 *  관리도구 오타보정, 연관검색어
+	 * @param input
+	 * @param request
+	 * @param uriInfo
+	 * @return
+	 */
+//	@POST
+//	@Consumes(MediaType.APPLICATION_JSON)
+//	@Produces({MediaType.TEXT_XML, MediaType.APPLICATION_JSON})
+//	@Path(searchRequestURL)
+//	public OpenAPIResponse searchPostProcess(String input, @Context HttpServletRequest request) {
+//
+//		// 검색 요청 기본 정보 설정
+//		
+//		try {
+////			System.out.println("### input : " + input);			
+//			// 검색 요청 변수 유효성 검사
+//			SearchVO searchVO = searchService.parseInput(input);
+//			searchVO.setHost(searchHost);	// 검색엔진 ip
+//			searchVO.setPort(searchPort);	// 검색엔진 port
+//			
+//			// 검색 수행
+//			return searchService.search(searchVO);
+//		} catch (Exception e) {
+//			logger.error("=+=+=+=+=+=+=+=+=+=+=+=+=+= EXCEPTION START =+=+=+=+=+=+=+=+=+=+=+=+=+=");
+//			logger.error("EXCEPTION 위치 : " + request.getServletPath());
+//			logger.error("EXCEPTION 내용 : \n" + e.toString());
+//			logger.error("=+=+=+=+=+=+=+=+=+=+=+=+=+= EXCEPTION END   =+=+=+=+=+=+=+=+=+=+=+=+=+=");
+//			return null;
+//		} finally {
+//			logger.debug("=========================== DEBUG START ===========================");
+//			logger.debug("DEBUG 위치 : " + request.getServletPath());
+//			logger.debug("=========================== DEBUG END   ===========================");
+//		}
+//		
+//	}
+	
+
+
+	///////////////////////////////////////////// UFILX 통합검색/순간검색:자동완성 /////////////////////////////////////////////
+	
+	/**
+	 * UFILX  통합검색 POST (xml, json)
+	 * @param returnType
+	 * @param URL
+	 * @param w
+	 * @param q
+	 * @param section
+	 * @param pg
+	 * @param outmax
+	 * @param sort
+	 * @param p
+	 * @param d
+	 * @param csq
+	 * @return
+	 */
+	@POST
+	@Consumes(MediaType.APPLICATION_FORM_URLENCODED)
+	@Path(searchUflixRequestURL)
+	public Response uflixSearchPostProcess(
+			@DefaultValue("text/xml") @HeaderParam("return-type") String returnType,
+			@HeaderParam("auth-key") String authKey,
+			@HeaderParam("encrypt-yn") String encryptYn,
+			@HeaderParam("unique_key") String uniqueKey,
+			@HeaderParam("user-sid") String userSid,
+			@HeaderParam("email") String email,
+			 
+			@RequestParam String all,
+			@DefaultValue("") @FormParam("w") String w,
+			@DefaultValue("") @FormParam("q") String q,
+			@DefaultValue("") @FormParam("section") String section,
+			@DefaultValue("1") @FormParam("pg") String pg,
+			@DefaultValue("20") @FormParam("outmax") String outmax,
+			@DefaultValue("") @FormParam("sort") String sort,
+			@DefaultValue("") @FormParam("p") String p,
+			@DefaultValue("") @FormParam("trunc") String trunc,
+			@DefaultValue("") @FormParam("d") String d
+			) {
+		logger.debug("======================== UFLIX MOBILE SERVICE API(POST) START   ========================");
+		String url="/";
+//		System.out.println("all::::::::::::::"+all);
+		String [] qarr = all.split("&");
+		
+		for ( int i = 0 ;i<qarr.length ; i++) {
+			
+			if (qarr[i].indexOf("q=") == 0 ) {
+				q = qarr[i].toString().replaceFirst("q=", "");
+				if (i <qarr.length-1) {
+					if (qarr[i+1].toString().indexOf("w=")>-1 || qarr[i+1].toString().indexOf("section=")>-1|| qarr[i+1].toString().indexOf("pg=")>-1|| qarr[i+1].toString().indexOf("outmax=")>-1|| qarr[i+1].toString().indexOf("sort=")>-1|| qarr[i+1].toString().indexOf("p=")>-1|| qarr[i+1].toString().indexOf("d=")>-1|| qarr[i+1].toString().indexOf("trunc=")>-1){
+						//
+					} else {// 'q' 값에 '&' 가 들어간경우 합침 
+						q = q+"&"+qarr[i+1].toString();
+					}
+				}else if (i == qarr.length-1 && (all.substring(all.length()-1,all.length())).equals("&")){
+					q = q+"&";
+				}
+					
+			} else if (qarr[i].indexOf("w=") == 0) {
+				w = qarr[i].toString().replaceFirst("w=", "");
+			}else if (qarr[i].indexOf("section=") ==0) {
+				section = qarr[i].toString().replaceFirst("section=", "");
+			}else if (qarr[i].indexOf("pg=") ==0) {
+				pg = qarr[i].toString().replaceFirst("pg=", "");
+			}else if (qarr[i].indexOf("outmax=") ==0) {
+				outmax = qarr[i].toString().replaceFirst("outmax=", "");
+			}else if (qarr[i].indexOf("sort=") ==0) {
+				sort = qarr[i].toString().replaceFirst("sort=", "");
+			}else if (qarr[i].indexOf("p=") ==0) {
+				p = qarr[i].toString().replaceFirst("p=", "");
+			}else if (qarr[i].indexOf("d=") ==0) {
+				d = qarr[i].toString().replaceFirst("d=", "");
+			} else if (qarr[i].indexOf("trunc=") ==0) {
+				trunc = qarr[i].toString().replaceFirst("trunc=", "");
+			}
+		}
+//		System.out.println("1::::::::::::::"+q);
+//		System.out.println("2::::::::::::::"+w);
+//		System.out.println("3::::::::::::::"+section);
+//		System.out.println("4::::::::::::::"+pg);
+//		System.out.println("5::::::::::::::"+outmax);
+//		System.out.println("6::::::::::::::"+sort);
+//		System.out.println("7::::::::::::::"+p);
+//		System.out.println("8::::::::::::::"+d);
+//		System.out.println("9::::::::::::::"+trunc);
+		
+		//		로그 기본 셋팅
+		LogVO logvo = new LogVO();
+		logvo.setREQ_TIME(logService.getNowDate(17)); 	// 사용자 요청 발생시간
+		logvo.setSID(uniqueKey);
+		logvo.setCTN(userSid); 	// 
+		logvo.setONEID_EMAIL(email);
+		logvo.setSVC_TYPE("UFX");
+		if ( w != null && w.equals("UFLIX_MOBILE") ) {
+			logvo.setSVC_CMD("total");
+		} else if ( w != null && w.equals("UFLIX_MOBILE_QUICK") ) {
+			logvo.setSVC_CMD("typing");
+		} else {
+			logvo.setSVC_CMD("");
+		}
+		if ( section ==null || section.equals("") ) {
+			logvo.setSECTION("N");
+		} else {
+			logvo.setSECTION(section);
+		}
+		
+		Response result = null;
+		// 파라미터 셋팅
+		VideoVO vo = new VideoVO();
+		vo.setReturnType(returnType);
+		vo.setAuthKey(authKey);
+		vo.setEncryptYn(encryptYn);
+		vo.setUniqueKey(uniqueKey);
+		vo.setUserSid(userSid);
+		vo.setEmail(email);
+		
+		vo.setW(w);
+		vo.setQ(q);
+		if ( vo.getW() != null && vo.getW().equals("UFLIX_MOBILE_QUICK")) {
+			vo.setSection("");
+		} else {
+			vo.setSection(section);
+		}
+		vo.setPg(pg);
+		if ( outmax.equals("")) {
+			outmax="20";
+		}
+		vo.setOutmax(outmax);
+		vo.setSort(sort);
+		vo.setP(p);
+		vo.setTrunc(trunc);
+		vo.setD(d);
+		
+		url += w+"/"+q+"/section="+section+"/pg="+pg+"/outmax="+vo.getOutmax()+"/sort="+sort+"/p="+p+"/d="+d;
+		logger.debug("[CALL URL] " + url);
+		
+		vo.setHost(searchHost);
+		vo.setPort(searchPort);
+		vo.setSectionList(sectionUflixList);
+		vo.setQuickList(quickUflixList);
+		
+		try {
+			
+			
+			// 검색 요청 변수 유효성 검사 & 디코드
+			vo = UtilManager.checkVideoInfo(vo, "N", "uflix"); // N : 디코드 안함 ,  Y : 디코드 처리
+			logvo.setKEYWORD(vo.getQ());
+			
+			if ( vo.hasErrorResponse() ) {	// 에러 O
+				
+				// suberror 만들기
+				List suberrorList = new ArrayList<Suberror>();
+				Suberror suberror = new Suberror();
+				suberror.setName(vo.getW());
+				suberror.setCode(vo.getErrorCode());
+				suberror.setMessage(vo.getErrorResponse());
+				suberrorList.add(suberror);
+				
+				if(returnType.equals("text/xml")) {
+					OpenAPIErrorResponse response =  new OpenAPIErrorResponse();
+					response.setCode(vo.getErrorCode());
+					response.setMessage(vo.getErrorResponse());
+					response.setSuberror(suberrorList);
+					result =  Response.ok(response, MediaType.TEXT_XML).build();
+				} else if(returnType.equals("application/json")) {
+					OpenAPIErrorResponseJson response =  new OpenAPIErrorResponseJson();
+					Json_Error json_error = new Json_Error();
+					json_error.setCode(vo.getErrorCode());
+					json_error.setMessage(vo.getErrorResponse());
+					json_error.setSuberror(suberrorList);
+					response.setJson_Error(json_error);
+					result =  Response.ok(response, MediaType.APPLICATION_JSON).build();
+				}
+				
+				logvo.setRESULT_CODE(vo.getErrorCode());
+				logger.debug("[RESULT CODE] " + vo.getErrorCode());
+			} // 에러 O ------ (END)
+			else {	// 에러 X
+				if(returnType.equals("text/xml")) {	// retrun-type : XML
+					if(w != null && w.equals("UFLIX_MOBILE")) {
+						OpenAPIUflixResponse videoResponse =  uflixService.search(vo);	// 검색 수행
+						if ( videoResponse.getErrorResponse() != null ) {	// 검색 에러 O
+							OpenAPIErrorResponse response =  videoResponse.getErrorResponse();
+							
+//							검색성공했지만 건수가 0 일때
+							if (response.getCode().equals("20001000") ) {
+								videoResponse.setErrorResponse(null);
+								result =  Response.ok(videoResponse, MediaType.TEXT_XML).build();
+								logvo.setRESULT_CODE("20001000");
+								logger.debug("[RESULT CODE] 20001000");
+							} else {
+								// suberror 담기
+								List suberrorList = new ArrayList<Suberror>();
+								Suberror suberror = new Suberror();
+								suberror.setName(vo.getW());
+								suberror.setCode(response.getCode());
+								suberror.setMessage(response.getMessage());
+								suberrorList.add(suberror);
+	
+								response.setSuberror(suberrorList);
+								
+								result =  Response.ok(response, MediaType.TEXT_XML).build();
+								logvo.setRESULT_CODE(response.getCode());
+								logger.debug("[RESULT CODE] "+response.getCode());
+							}
+						} else {
+							result =  Response.ok(videoResponse, MediaType.TEXT_XML).build();
+							logvo.setRESULT_CODE("20000000");
+							logger.debug("[RESULT CODE] 20000000");
+						}
+					} else if(w != null && w.equals("UFLIX_MOBILE_QUICK")) {
+						OpenAPIUflixQuickResponse videoResponse =  uflixService.searchQuick(vo);
+						if ( videoResponse.getErrorResponse() != null ) {	// 검색 에러 X
+							OpenAPIErrorResponse response =  videoResponse.getErrorResponse();
+							
+//							검색성공했지만 건수가 0 일때
+							if (response.getCode().equals("20001000") ) {
+								videoResponse.setErrorResponse(null);
+								result =  Response.ok(videoResponse, MediaType.TEXT_XML).build();
+								logvo.setRESULT_CODE("20001000");
+								logger.debug("[RESULT CODE] 20001000");
+							} else {
+								// suberror 담기
+								List suberrorList = new ArrayList<Suberror>();
+								Suberror suberror = new Suberror();
+								suberror.setName(vo.getW());
+								suberror.setCode(response.getCode());
+								suberror.setMessage(response.getMessage());
+								suberrorList.add(suberror);
+	
+								response.setSuberror(suberrorList);
+								
+								result =  Response.ok(response, MediaType.TEXT_XML).build();
+								logvo.setRESULT_CODE(response.getCode());
+								logger.debug("[RESULT CODE] "+response.getCode());
+							}
+						} else {
+							result =  Response.ok(videoResponse, MediaType.TEXT_XML).build();
+							logvo.setRESULT_CODE("20000000");
+							logger.debug("[RESULT CODE] 20000000");
+						}
+					} 
+				} // retrun-type : XML ------ (END)
+				else if(returnType.equals("application/json")) {	// retrun-type : json
+					if(w != null && w.equals("UFLIX_MOBILE")) {
+						OpenAPIUflixResponseJson videoResponse =  uflixService.searchJson(vo);		// 검색 수행
+						
+						if ( videoResponse.getErrorResponse() != null ) {	// 검색 에러 O
+							OpenAPIErrorResponseJson response =  videoResponse.getErrorResponse();
+							
+//							검색성공했지만 건수가 0 일때
+							if (response.getJson_Error().getCode().equals("20001000") ) {
+								result =  Response.ok(videoResponse, MediaType.APPLICATION_JSON).build();
+								logvo.setRESULT_CODE("20001000");
+								logger.debug("[RESULT CODE] 20001000");
+							} else {
+								// suberror 담기
+								List suberrorList = new ArrayList<Suberror>();
+								Suberror suberror = new Suberror();
+								suberror.setName(vo.getW());
+								suberror.setCode(response.getJson_Error().getCode());
+								suberror.setMessage(response.getJson_Error().getMessage());
+								suberrorList.add(suberror);
+	
+								Json_Error error = response.getJson_Error();
+								error.setSuberror(suberrorList);
+								response.setJson_Error(error);
+								
+								result =  Response.ok(response, MediaType.APPLICATION_JSON).build();
+								logvo.setRESULT_CODE(response.getJson_Error().getCode());
+								logger.debug("[RESULT CODE] "+response.getJson_Error().getCode());
+							}
+						} else {
+							result =  Response.ok(videoResponse, MediaType.APPLICATION_JSON).build();
+							logvo.setRESULT_CODE("20000000");
+							logger.debug("[RESULT CODE] 20000000");
+						}
+						
+					} else if(w != null && w.equals("UFLIX_MOBILE_QUICK")) {
+						OpenAPIUflixQuickResponseJson videoResponse =  uflixService.searchQuickJson(vo);
+						
+						if ( videoResponse.getErrorResponse() != null ) {	// 검색 에러 일때
+							OpenAPIErrorResponseJson response =  videoResponse.getErrorResponse();
+							
+//							검색성공했지만 건수가 0 일때
+							if (response.getJson_Error().getCode().equals("20001000") ) {
+								result =  Response.ok(videoResponse, MediaType.APPLICATION_JSON).build();
+								logvo.setRESULT_CODE("20001000");
+								logger.debug("[RESULT CODE] 20001000");
+							} else {
+								// suberror 담기
+								List suberrorList = new ArrayList<Suberror>();
+								Suberror suberror = new Suberror();
+								suberror.setName(vo.getW());
+								suberror.setCode(response.getJson_Error().getCode());
+								suberror.setMessage(response.getJson_Error().getMessage());
+								suberrorList.add(suberror);
+	
+								Json_Error error = response.getJson_Error();
+								error.setSuberror(suberrorList);
+								response.setJson_Error(error);
+								
+								result =  Response.ok(response, MediaType.APPLICATION_JSON).build();
+								logvo.setRESULT_CODE(response.getJson_Error().getCode());
+								logger.debug("[RESULT CODE] "+response.getJson_Error().getCode());
+							}
+						} else {
+							result =  Response.ok(videoResponse, MediaType.APPLICATION_JSON).build();
+							logvo.setRESULT_CODE("20000000");
+							logger.debug("[RESULT CODE] 20000000");
+						}
+					}
+				}	//  retrun-type : json ------ (END)
+			}	// 에러 X ------ (END)
+			
+			return result;
+		} catch (Exception e) {
+			logger.debug("[EXCEPTION START]");
+//			logger.error("EXCEPTION 위치 : " + request.getServletPath());
+			logger.debug("EXCEPTION 내용 : \n" + e.toString());
+			
+			String code="";
+			if (w.equals("UFLIX_MOBILE")) {
+				code = "1000";
+			} else {
+				code = "2000";
+			}
+			if(returnType.equals("text/xml")) {
+				OpenAPIErrorResponse response =  new OpenAPIErrorResponse();
+				// suberror 만들기
+				List suberrorList = new ArrayList<Suberror>();
+				Suberror suberror = new Suberror();
+				suberror.setName(vo.getW());
+				suberror.setCode(code);
+				
+				response.setCode(code);
+				if (code.equals("1000")){
+					response.setMessage(ERROR_TYPE.CODE_40001000.getErrorMessage());
+					suberror.setMessage(ERROR_TYPE.CODE_40001000.getErrorMessage());
+					logvo.setRESULT_CODE("40001000");
+					logger.debug("[RESULT CODE] 40001000");
+				} else {
+					response.setMessage(ERROR_TYPE.CODE_40002000.getErrorMessage());
+					suberror.setMessage(ERROR_TYPE.CODE_40002000.getErrorMessage());
+					logvo.setRESULT_CODE("40002000");
+					logger.debug("[RESULT CODE] 40002000");
+				}
+				
+				suberrorList.add(suberror);
+
+				response.setSuberror(suberrorList);
+				
+				result =  Response.ok(response, MediaType.TEXT_XML).build();
+
+			} else if(returnType.equals("application/json")) {
+				OpenAPIErrorResponseJson response =  new OpenAPIErrorResponseJson();
+				Json_Error json_error = new Json_Error();
+				
+				// suberror 만들기
+				List suberrorList = new ArrayList<Suberror>();
+				Suberror suberror = new Suberror();
+				suberror.setName(vo.getW());
+				suberror.setCode(code);
+				
+				json_error.setCode(code);
+				if (code.equals("1000")){
+					json_error.setMessage(ERROR_TYPE.CODE_40001000.getErrorMessage());
+					suberror.setMessage(ERROR_TYPE.CODE_40001000.getErrorMessage());
+					logvo.setRESULT_CODE("40001000");
+					logger.debug("[RESULT CODE] 40001000");
+				} else {
+					json_error.setMessage(ERROR_TYPE.CODE_40003000.getErrorMessage());
+					suberror.setMessage(ERROR_TYPE.CODE_40003000.getErrorMessage());
+					logvo.setRESULT_CODE("40003000");
+					logger.debug("[RESULT CODE] 40003000");
+				}
+				
+				suberrorList.add(suberror);
+
+				json_error.setSuberror(suberrorList);
+
+				response.setJson_Error(json_error);
+				result =  Response.ok(response, MediaType.APPLICATION_JSON).build();
+				
+			}
+			
+			return result;
+		} finally {
+//			logger.debug("DEBUG 위치 : " + request.getServletPath());
+			logvo = logService.setCommonLog(logvo);
+			logvo.setRSP_TIME(logService.getNowDate(17)); 	// 사용자 요청 응답 발생시간
+			logService.writeLog(logvo,was_num);
+			logger.debug("======================== UFLIX MOBILE SERVICE API(POST) END   ========================");
+		}
+		
+	}
+	
+	/**
+	 * UFILX  통합검색 - GET (xml, json)
+	 * @param returnType
+	 * @param w
+	 * @param q
+	 * @param p
+	 * @param section
+	 * @param pg
+	 * @param outmax
+	 * @param sort
+	 * @param d
+	 * @param csq
+	 * @return
+	 */
+	@GET
+	@Produces({MediaType.TEXT_XML, MediaType.APPLICATION_JSON})
+	@Path(searchUflixRequestURL+"/{w}/{q}/{section}/{pg}/{outmax}/{sort}/{p}/{d}")
+	public Response uflixSearchGetProcess(
+			@DefaultValue("text/xml") @HeaderParam("return-type") String returnType,
+			@HeaderParam("auth-key") String authKey,
+			@HeaderParam("encrypt-yn") String encryptYn,
+			@HeaderParam("unique_key") String uniqueKey,
+			@HeaderParam("user-sid") String userSid,
+			@HeaderParam("email") String email,
+			
+			@PathParam("w") String w, 
+			@PathParam("q") String q, 
+			@PathParam("p") String p,
+			@PathParam("section") String section, 
+			@PathParam("pg") String pg, 
+			@PathParam("outmax") String outmax,
+			@PathParam("sort") String sort, 
+			@PathParam("d") String d) {
+		logger.debug("======================== UFLIX MOBILE SERVICE API(GET) START   ========================");
+		String url="/";
+		Response result = null;
+		// get파라미터 셋팅
+		VideoVO getVO = new VideoVO();
+		getVO.setReturnType(returnType);
+		getVO.setAuthKey(authKey);
+		getVO.setEncryptYn(encryptYn);
+		getVO.setUniqueKey(uniqueKey);
+		getVO.setUserSid(userSid);
+		getVO.setEmail(email);
+		
+		getVO.setW(w);
+		getVO.setQ(q.replaceFirst("q=", ""));
+		getVO.setPg((pg+"").replaceFirst("pg=", ""));
+		getVO.setP(p.replaceFirst("p=", ""));
+		getVO.setSection(section.replaceFirst("section=", ""));
+		if ( getVO.getW() != null && getVO.getW().equals("UFLIX_MOBILE_QUICK")) {
+			getVO.setSection("");
+		}
+		
+		getVO.setOutmax(outmax.replaceFirst("outmax=", ""));
+		if ( outmax !=null && !outmax.equals("")) {
+			outmax="20";
+		}
+		getVO.setSort(sort.replaceFirst("sort=", ""));
+		getVO.setD(d.replaceFirst("d=", ""));
+		
+		url += w+"/"+q+"/"+section+"/"+pg+"/outmax="+getVO.getOutmax()+"/"+sort+"/"+p+"/"+d;
+		logger.debug("[CALL URL] " + url);
+		
+		getVO.setHost(searchHost);
+		getVO.setPort(searchPort);
+		getVO.setSectionList(sectionUflixList);
+		getVO.setQuickList(quickUflixList);
+		
+		//		로그 기본 셋팅
+		LogVO logvo = new LogVO();
+		logvo.setREQ_TIME(logService.getNowDate(17)); 	// 사용자 요청 발생시간
+		logvo.setSID(uniqueKey);
+		logvo.setCTN(userSid); 	//
+		logvo.setONEID_EMAIL(email);
+		logvo.setSVC_TYPE("UFX");
+		if ( w != null && w.equals("UFLIX_MOBILE") ) {
+			logvo.setSVC_CMD("total");
+		} else if ( w != null && w.equals("UFLIX_MOBILE_QUICK") ) {
+			logvo.setSVC_CMD("typing");
+		} else {
+			logvo.setSVC_CMD("");
+		}
+		if ( section ==null || section.replaceFirst("section=", "").equals("") ) {
+			logvo.setSECTION("N");
+		} else {
+			logvo.setSECTION(section);
+		}
+		try {
+			
+			
+			// 검색 요청 변수 유효성 검사 & 디코드
+			getVO = UtilManager.checkVideoInfo(getVO, "Y", "uflix");	 // N : 디코드 안함 ,  Y : 디코드 처리
+			logvo.setKEYWORD(getVO.getQ());
+			
+			if ( getVO.hasErrorResponse() ) {	// 에러 O
+				
+				// suberror 만들기
+				List suberrorList = new ArrayList<Suberror>();
+				Suberror suberror = new Suberror();
+				suberror.setName(getVO.getW());
+				suberror.setCode(getVO.getErrorCode());
+				suberror.setMessage(getVO.getErrorResponse());
+				suberrorList.add(suberror);
+				
+				if(returnType.equals("text/xml")) {
+					OpenAPIErrorResponse response =  new OpenAPIErrorResponse();
+					response.setCode(getVO.getErrorCode());
+					response.setMessage(getVO.getErrorResponse());
+					
+					response.setSuberror(suberrorList);
+					result =  Response.ok(response, MediaType.TEXT_XML).build();
+				} else if(returnType.equals("application/json")) {
+					OpenAPIErrorResponseJson response =  new OpenAPIErrorResponseJson();
+					Json_Error json_error = new Json_Error();
+					json_error.setCode(getVO.getErrorCode());
+					json_error.setMessage(getVO.getErrorResponse());
+					json_error.setSuberror(suberrorList);
+					response.setJson_Error(json_error);
+					result =  Response.ok(response, MediaType.APPLICATION_JSON).build();
+				}
+				
+				logvo.setRESULT_CODE(getVO.getErrorCode());
+				logger.debug("[RESULT CODE] "+getVO.getErrorCode());
+			} // 에러 O ------ (END)
+			else {	// 에러 X
+				if(returnType.equals("text/xml")) {	// retrun-type : XML
+					if(w != null && w.equals("UFLIX_MOBILE")) {
+						OpenAPIUflixResponse videoResponse =  uflixService.search(getVO);	// 검색 수행
+						if ( videoResponse.getErrorResponse() != null ) {	// 검색 에러 O
+							OpenAPIErrorResponse response =  videoResponse.getErrorResponse();
+							
+//							검색성공했지만 건수가 0 일때
+							if (response.getCode().equals("20001000") ) {
+								videoResponse.setErrorResponse(null);
+								result =  Response.ok(videoResponse, MediaType.TEXT_XML).build();
+								logvo.setRESULT_CODE("20001000");
+								logger.debug("[RESULT CODE] 20001000");
+							} else {
+								// suberror 담기
+								List suberrorList = new ArrayList<Suberror>();
+								Suberror suberror = new Suberror();
+								suberror.setName(getVO.getW());
+								suberror.setCode(response.getCode());
+								suberror.setMessage(response.getMessage());
+								suberrorList.add(suberror);
+	
+								response.setSuberror(suberrorList);
+								
+								result =  Response.ok(response, MediaType.TEXT_XML).build();
+								logvo.setRESULT_CODE(response.getCode());
+								logger.debug("[RESULT CODE] "+response.getCode());
+							}
+						} else {
+							result =  Response.ok(videoResponse, MediaType.TEXT_XML).build();
+							logvo.setRESULT_CODE("20000000");
+							logger.debug("[RESULT CODE] 20000000");
+						}
+					} else if(w != null && w.equals("UFLIX_MOBILE_QUICK")) {
+						OpenAPIUflixQuickResponse videoResponse =  uflixService.searchQuick(getVO);
+						if ( videoResponse.getErrorResponse() != null ) {	// 검색 에러 X
+							OpenAPIErrorResponse response =  videoResponse.getErrorResponse();
+//							검색성공했지만 건수가 0 일때
+							if (response.getCode().equals("20001000") ) {
+								videoResponse.setErrorResponse(null);
+								result =  Response.ok(videoResponse, MediaType.TEXT_XML).build();
+								logvo.setRESULT_CODE("20001000");
+								logger.debug("[RESULT CODE] 20001000");
+							} else {
+								// suberror 담기
+								List suberrorList = new ArrayList<Suberror>();
+								Suberror suberror = new Suberror();
+								suberror.setName(getVO.getW());
+								suberror.setCode(response.getCode());
+								suberror.setMessage(response.getMessage());
+								suberrorList.add(suberror);
+	
+								response.setSuberror(suberrorList);
+								
+								result =  Response.ok(response, MediaType.TEXT_XML).build();
+								logvo.setRESULT_CODE(response.getCode());
+								logger.debug("[RESULT CODE] "+response.getCode());
+							}
+						} else {
+							result =  Response.ok(videoResponse, MediaType.TEXT_XML).build();
+							logvo.setRESULT_CODE("20000000");
+							logger.debug("[RESULT CODE] 20000000");
+						}
+					}
+				} // retrun-type : XML ------ (END)
+				else if(returnType.equals("application/json")) {	// retrun-type : json
+					if(w != null && w.equals("UFLIX_MOBILE")) {
+						OpenAPIUflixResponseJson videoResponse =  uflixService.searchJson(getVO);		// 검색 수행
+						
+						if ( videoResponse.getErrorResponse() != null ) {	// 검색 에러 O
+							OpenAPIErrorResponseJson response =  videoResponse.getErrorResponse();
+							
+//							검색성공했지만 건수가 0 일때
+							if (response.getJson_Error().getCode().equals("20001000") ) {
+								result =  Response.ok(videoResponse, MediaType.APPLICATION_JSON).build();
+								logvo.setRESULT_CODE("20001000");
+								logger.debug("[RESULT CODE] 20000000");
+							} else {
+								// suberror 담기
+								List suberrorList = new ArrayList<Suberror>();
+								Suberror suberror = new Suberror();
+								suberror.setName(getVO.getW());
+								suberror.setCode(response.getJson_Error().getCode());
+								suberror.setMessage(response.getJson_Error().getMessage());
+								suberrorList.add(suberror);
+	
+								Json_Error error = response.getJson_Error();
+								error.setSuberror(suberrorList);
+								response.setJson_Error(error);
+								
+								result =  Response.ok(response, MediaType.APPLICATION_JSON).build();
+								logvo.setRESULT_CODE(response.getJson_Error().getCode());
+								logger.debug("[RESULT CODE] "+response.getJson_Error().getCode());
+							}
+						} else {
+							result =  Response.ok(videoResponse, MediaType.APPLICATION_JSON).build();
+							logvo.setRESULT_CODE("20000000");
+							logger.debug("[RESULT CODE] 20000000");
+						}
+						
+					} else if(w != null && w.equals("UFLIX_MOBILE_QUICK")) {
+						OpenAPIUflixQuickResponseJson videoResponse =  uflixService.searchQuickJson(getVO);
+						
+						if ( videoResponse.getErrorResponse() != null ) {	// 검색 에러 일때
+							OpenAPIErrorResponseJson response =  videoResponse.getErrorResponse();
+							
+//							검색성공했지만 건수가 0 일때
+							if (response.getJson_Error().getCode().equals("20001000") ) {
+								result =  Response.ok(videoResponse, MediaType.APPLICATION_JSON).build();
+								logvo.setRESULT_CODE("20001000");
+								logger.debug("[RESULT CODE] 20001000");
+							} else {
+								// suberror 담기
+								List suberrorList = new ArrayList<Suberror>();
+								Suberror suberror = new Suberror();
+								suberror.setName(getVO.getW());
+								suberror.setCode(response.getJson_Error().getCode());
+								suberror.setMessage(response.getJson_Error().getMessage());
+								suberrorList.add(suberror);
+	
+								Json_Error error = response.getJson_Error();
+								error.setSuberror(suberrorList);
+								response.setJson_Error(error);
+								
+								result =  Response.ok(response, MediaType.APPLICATION_JSON).build();
+								logvo.setRESULT_CODE(response.getJson_Error().getCode());
+								logger.debug("[RESULT CODE] "+response.getJson_Error().getCode());
+							}
+						} else {
+							result =  Response.ok(videoResponse, MediaType.APPLICATION_JSON).build();
+							logvo.setRESULT_CODE("20000000");
+							logger.debug("[RESULT CODE] 20000000");
+						}
+					}
+				}	//  retrun-type : json ------ (END)
+			}	// 에러 X ------ (END)
+			
+			return result;
+		} catch (Exception e) {
+			logger.debug("[EXCEPTION START]");
+//			logger.error("EXCEPTION 위치 : " + request.getServletPath());
+			logger.debug("EXCEPTION 내용 : \n" + e.toString());
+			
+			String code="";
+			if (w.equals("UFLIX_MOBILE")) {
+				code = "1000";
+			} else {
+				code = "2000";
+			}
+			if(returnType.equals("text/xml")) {
+				OpenAPIErrorResponse response =  new OpenAPIErrorResponse();
+				
+				// suberror 만들기
+				List suberrorList = new ArrayList<Suberror>();
+				Suberror suberror = new Suberror();
+				suberror.setName(getVO.getW());
+				suberror.setCode(code);
+				
+				response.setCode(code);
+				if (code.equals("1000")){
+					response.setMessage(ERROR_TYPE.CODE_40001000.getErrorMessage());
+					suberror.setMessage(ERROR_TYPE.CODE_40001000.getErrorMessage());
+					logvo.setRESULT_CODE("40001000");
+					logger.debug("[RESULT CODE] 40001000");
+				} else {
+					response.setMessage(ERROR_TYPE.CODE_40002000.getErrorMessage());
+					suberror.setMessage(ERROR_TYPE.CODE_40002000.getErrorMessage());
+					logvo.setRESULT_CODE("40002000");
+					logger.debug("[RESULT CODE] 40002000");
+				}
+				
+				suberrorList.add(suberror);
+
+				response.setSuberror(suberrorList);
+
+				result =  Response.ok(response, MediaType.TEXT_XML).build();
+				
+			} else if(returnType.equals("application/json")) {
+				OpenAPIErrorResponseJson response =  new OpenAPIErrorResponseJson();
+				Json_Error json_error = new Json_Error();
+				
+				// suberror 만들기
+				List suberrorList = new ArrayList<Suberror>();
+				Suberror suberror = new Suberror();
+				suberror.setName(getVO.getW());
+				suberror.setCode(code);
+				
+				json_error.setCode(code);
+				if (code.equals("1000")){
+					json_error.setMessage(ERROR_TYPE.CODE_40001000.getErrorMessage());
+					suberror.setMessage(ERROR_TYPE.CODE_40001000.getErrorMessage());
+					logvo.setRESULT_CODE("40001000");
+					logger.debug("[RESULT CODE] 40001000");
+				} else {
+					json_error.setMessage(ERROR_TYPE.CODE_40003000.getErrorMessage());
+					suberror.setMessage(ERROR_TYPE.CODE_40003000.getErrorMessage());
+					logvo.setRESULT_CODE("40003000");
+					logger.debug("[RESULT CODE] 40003000");
+				}
+				suberrorList.add(suberror);
+
+				json_error.setSuberror(suberrorList);
+
+				response.setJson_Error(json_error);
+				result =  Response.ok(response, MediaType.APPLICATION_JSON).build();
+				
+			}
+			
+			return result;
+		} finally {
+//			logger.debug("DEBUG 위치 : " + request.getServletPath());
+			logvo = logService.setCommonLog(logvo);
+			logvo.setRSP_TIME(logService.getNowDate(17)); 	// 사용자 요청 응답 발생시간
+			logService.writeLog(logvo,was_num);
+			logger.debug("======================== UFLIX MOBILE SERVICE API(GET) END   ========================");
+		}
+		
+	}
+	
+	/**
+	 * UFILX  통합검색 - GET (xml, json)
+	 * @param returnType
+	 * @param w
+	 * @param q
+	 * @param p
+	 * @param section
+	 * @param pg
+	 * @param outmax
+	 * @param sort
+	 * @param d
+	 * @param csq
+	 * @return
+	 */
+	@GET
+	@Produces({MediaType.TEXT_XML, MediaType.APPLICATION_JSON})
+	@Path(searchUflixRequestURL+"/{w}/{q}/{section}/{pg}/{outmax}/{trunc}/{sort}/{p}/{d}")
+	public Response uflixQuickSearchGetProcess(
+			@DefaultValue("text/xml") @HeaderParam("return-type") String returnType,
+			@HeaderParam("auth-key") String authKey,
+			@HeaderParam("encrypt-yn") String encryptYn,
+			@HeaderParam("unique_key") String uniqueKey,
+			@HeaderParam("user-sid") String userSid,
+			@HeaderParam("email") String email,
+			
+			@PathParam("w") String w, 
+			@PathParam("q") String q, 
+			@PathParam("p") String p,
+			@PathParam("section") String section, 
+			@PathParam("pg") String pg, 
+			@PathParam("outmax") String outmax,
+			@PathParam("trunc") String trunc, 
+			@PathParam("sort") String sort, 
+			@PathParam("d") String d) {
+		logger.debug("======================== UFLIX MOBILE SERVICE API(GET) START   ========================");
+		String url="/";
+		
+		Response result = null;
+		// get파라미터 셋팅
+		VideoVO getVO = new VideoVO();
+		getVO.setReturnType(returnType);
+		getVO.setAuthKey(authKey);
+		getVO.setEncryptYn(encryptYn);
+		getVO.setUniqueKey(uniqueKey);
+		getVO.setUserSid(userSid);
+		getVO.setEmail(email);
+		
+		getVO.setW(w);
+		getVO.setQ(q.replaceFirst("q=", ""));
+		getVO.setPg((pg+"").replaceFirst("pg=", ""));
+		getVO.setP(p.replaceFirst("p=", ""));
+		getVO.setSection(section.replaceFirst("section=", ""));
+		if ( getVO.getW() != null && getVO.getW().equals("UFLIX_MOBILE_QUICK")) {
+			getVO.setSection("");
+		}
+		
+		getVO.setOutmax(outmax.replaceFirst("outmax=", ""));
+		if ( outmax !=null && !outmax.equals("")) {
+			outmax="20";
+		}
+		getVO.setTrunc(trunc.replaceFirst("trunc=", ""));
+		getVO.setSort(sort.replaceFirst("sort=", ""));
+		getVO.setD(d.replaceFirst("d=", ""));
+		
+		url += w+"/"+q+"/"+section+"/"+pg+"/outmax="+getVO.getOutmax()+"/"+trunc+"/"+sort+"/"+p+"/"+d;
+		logger.debug("[CALL URL] " + url);
+		
+		getVO.setHost(searchHost);
+		getVO.setPort(searchPort);
+		getVO.setSectionList(sectionUflixList);
+		getVO.setQuickList(quickUflixList);
+		
+		//		로그 기본 셋팅
+		LogVO logvo = new LogVO();
+		logvo.setREQ_TIME(logService.getNowDate(17)); 	// 사용자 요청 발생시간
+		logvo.setSID(uniqueKey);
+		logvo.setCTN(userSid); 	//
+		logvo.setONEID_EMAIL(email);
+		logvo.setSVC_TYPE("UFX");
+		if ( w != null && w.equals("UFLIX_MOBILE") ) {
+			logvo.setSVC_CMD("total");
+		} else if ( w != null && w.equals("UFLIX_MOBILE_QUICK") ) {
+			logvo.setSVC_CMD("typing");
+		} else {
+			logvo.setSVC_CMD("");
+		}
+		if ( section ==null || section.replaceFirst("section=", "").equals("") ) {
+			logvo.setSECTION("N");
+		} else {
+			logvo.setSECTION(section);
+		}
+		try {
+			
+			
+			// 검색 요청 변수 유효성 검사 & 디코드
+			getVO = UtilManager.checkVideoInfo(getVO, "Y", "uflix");	 // N : 디코드 안함 ,  Y : 디코드 처리
+			logvo.setKEYWORD(getVO.getQ());
+			
+			if ( getVO.hasErrorResponse() ) {	// 에러 O
+				
+				// suberror 만들기
+				List suberrorList = new ArrayList<Suberror>();
+				Suberror suberror = new Suberror();
+				suberror.setName(getVO.getW());
+				suberror.setCode(getVO.getErrorCode());
+				suberror.setMessage(getVO.getErrorResponse());
+				suberrorList.add(suberror);
+				
+				if(returnType.equals("text/xml")) {
+					OpenAPIErrorResponse response =  new OpenAPIErrorResponse();
+					response.setCode(getVO.getErrorCode());
+					response.setMessage(getVO.getErrorResponse());
+					
+					response.setSuberror(suberrorList);
+					result =  Response.ok(response, MediaType.TEXT_XML).build();
+				} else if(returnType.equals("application/json")) {
+					OpenAPIErrorResponseJson response =  new OpenAPIErrorResponseJson();
+					Json_Error json_error = new Json_Error();
+					json_error.setCode(getVO.getErrorCode());
+					json_error.setMessage(getVO.getErrorResponse());
+					json_error.setSuberror(suberrorList);
+					response.setJson_Error(json_error);
+					result =  Response.ok(response, MediaType.APPLICATION_JSON).build();
+				}
+				
+				logvo.setRESULT_CODE(getVO.getErrorCode());
+				logger.debug("[RESULT CODE] "+getVO.getErrorCode());
+			} // 에러 O ------ (END)
+			else {	// 에러 X
+				if(returnType.equals("text/xml")) {	// retrun-type : XML
+					if(w != null && w.equals("UFLIX_MOBILE")) {
+						OpenAPIUflixResponse videoResponse =  uflixService.search(getVO);	// 검색 수행
+						if ( videoResponse.getErrorResponse() != null ) {	// 검색 에러 O
+							OpenAPIErrorResponse response =  videoResponse.getErrorResponse();
+							
+//							검색성공했지만 건수가 0 일때
+							if (response.getCode().equals("20001000") ) {
+								videoResponse.setErrorResponse(null);
+								result =  Response.ok(videoResponse, MediaType.TEXT_XML).build();
+								logvo.setRESULT_CODE("20001000");
+								logger.debug("[RESULT CODE] 20001000");
+							} else {
+								// suberror 담기
+								List suberrorList = new ArrayList<Suberror>();
+								Suberror suberror = new Suberror();
+								suberror.setName(getVO.getW());
+								suberror.setCode(response.getCode());
+								suberror.setMessage(response.getMessage());
+								suberrorList.add(suberror);
+	
+								response.setSuberror(suberrorList);
+								
+								result =  Response.ok(response, MediaType.TEXT_XML).build();
+								logvo.setRESULT_CODE(response.getCode());
+								logger.debug("[RESULT CODE] "+response.getCode());
+							}
+						} else {
+							result =  Response.ok(videoResponse, MediaType.TEXT_XML).build();
+							logvo.setRESULT_CODE("20000000");
+						}
+					} else if(w != null && w.equals("UFLIX_MOBILE_QUICK")) {
+						OpenAPIUflixQuickResponse videoResponse =  uflixService.searchQuick(getVO);
+						if ( videoResponse.getErrorResponse() != null ) {	// 검색 에러 X
+							OpenAPIErrorResponse response =  videoResponse.getErrorResponse();
+//							검색성공했지만 건수가 0 일때
+							if (response.getCode().equals("20001000") ) {
+								videoResponse.setErrorResponse(null);
+								result =  Response.ok(videoResponse, MediaType.TEXT_XML).build();
+								logvo.setRESULT_CODE("20001000");
+								logger.debug("[RESULT CODE] 20001000");
+							} else {
+								// suberror 담기
+								List suberrorList = new ArrayList<Suberror>();
+								Suberror suberror = new Suberror();
+								suberror.setName(getVO.getW());
+								suberror.setCode(response.getCode());
+								suberror.setMessage(response.getMessage());
+								suberrorList.add(suberror);
+	
+								response.setSuberror(suberrorList);
+								
+								result =  Response.ok(response, MediaType.TEXT_XML).build();
+								logvo.setRESULT_CODE(response.getCode());
+								logger.debug("[RESULT CODE] "+response.getCode());
+							}
+						} else {
+							result =  Response.ok(videoResponse, MediaType.TEXT_XML).build();
+							logvo.setRESULT_CODE("20000000");
+							logger.debug("[RESULT CODE] 20000000");
+						}
+					}
+				} // retrun-type : XML ------ (END)
+				else if(returnType.equals("application/json")) {	// retrun-type : json
+					if(w != null && w.equals("UFLIX_MOBILE")) {
+						OpenAPIUflixResponseJson videoResponse =  uflixService.searchJson(getVO);		// 검색 수행
+						
+						if ( videoResponse.getErrorResponse() != null ) {	// 검색 에러 O
+							OpenAPIErrorResponseJson response =  videoResponse.getErrorResponse();
+							
+//							검색성공했지만 건수가 0 일때
+							if (response.getJson_Error().getCode().equals("20001000") ) {
+								result =  Response.ok(videoResponse, MediaType.APPLICATION_JSON).build();
+								logvo.setRESULT_CODE("20001000");
+								logger.debug("[RESULT CODE] 20001000");
+							} else {
+								// suberror 담기
+								List suberrorList = new ArrayList<Suberror>();
+								Suberror suberror = new Suberror();
+								suberror.setName(getVO.getW());
+								suberror.setCode(response.getJson_Error().getCode());
+								suberror.setMessage(response.getJson_Error().getMessage());
+								suberrorList.add(suberror);
+	
+								Json_Error error = response.getJson_Error();
+								error.setSuberror(suberrorList);
+								response.setJson_Error(error);
+								
+								result =  Response.ok(response, MediaType.APPLICATION_JSON).build();
+								logvo.setRESULT_CODE(response.getJson_Error().getCode());
+								logger.debug("[RESULT CODE] "+response.getJson_Error().getCode());
+							}
+						} else {
+							result =  Response.ok(videoResponse, MediaType.APPLICATION_JSON).build();
+							logvo.setRESULT_CODE("20000000");
+							logger.debug("[RESULT CODE] 20000000");
+						}
+						
+					} else if(w != null && w.equals("UFLIX_MOBILE_QUICK")) {
+						OpenAPIUflixQuickResponseJson videoResponse =  uflixService.searchQuickJson(getVO);
+						
+						if ( videoResponse.getErrorResponse() != null ) {	// 검색 에러 일때
+							OpenAPIErrorResponseJson response =  videoResponse.getErrorResponse();
+							
+//							검색성공했지만 건수가 0 일때
+							if (response.getJson_Error().getCode().equals("20001000") ) {
+								result =  Response.ok(videoResponse, MediaType.APPLICATION_JSON).build();
+								logvo.setRESULT_CODE("20001000");
+								logger.debug("[RESULT CODE] 20001000");
+							} else {
+								// suberror 담기
+								List suberrorList = new ArrayList<Suberror>();
+								Suberror suberror = new Suberror();
+								suberror.setName(getVO.getW());
+								suberror.setCode(response.getJson_Error().getCode());
+								suberror.setMessage(response.getJson_Error().getMessage());
+								suberrorList.add(suberror);
+	
+								Json_Error error = response.getJson_Error();
+								error.setSuberror(suberrorList);
+								response.setJson_Error(error);
+								
+								result =  Response.ok(response, MediaType.APPLICATION_JSON).build();
+								logvo.setRESULT_CODE(response.getJson_Error().getCode());
+								logger.debug("[RESULT CODE] "+response.getJson_Error().getCode());
+							}
+						} else {
+							result =  Response.ok(videoResponse, MediaType.APPLICATION_JSON).build();
+							logvo.setRESULT_CODE("20000000");
+							logger.debug("[RESULT CODE] 20000000");
+						}
+					}
+				}	//  retrun-type : json ------ (END)
+			}	// 에러 X ------ (END)
+			
+			return result;
+		} catch (Exception e) {
+			logger.debug("[EXCEPTION START]");
+//			logger.error("EXCEPTION 위치 : " + request.getServletPath());
+			logger.debug("EXCEPTION 내용 : \n" + e.toString());
+			
+			String code="";
+			if (w.equals("UFLIX_MOBILE")) {
+				code = "1000";
+			} else {
+				code = "2000";
+			}
+			if(returnType.equals("text/xml")) {
+				OpenAPIErrorResponse response =  new OpenAPIErrorResponse();
+				
+				// suberror 만들기
+				List suberrorList = new ArrayList<Suberror>();
+				Suberror suberror = new Suberror();
+				suberror.setName(getVO.getW());
+				suberror.setCode(code);
+				
+				response.setCode(code);
+				if (code.equals("1000")){
+					response.setMessage(ERROR_TYPE.CODE_40001000.getErrorMessage());
+					suberror.setMessage(ERROR_TYPE.CODE_40001000.getErrorMessage());
+					logvo.setRESULT_CODE("40001000");
+					logger.debug("[RESULT CODE] 40001000");
+				} else {
+					response.setMessage(ERROR_TYPE.CODE_40002000.getErrorMessage());
+					suberror.setMessage(ERROR_TYPE.CODE_40002000.getErrorMessage());
+					logvo.setRESULT_CODE("40002000");
+					logger.debug("[RESULT CODE] 40002000");
+				}
+				
+				suberrorList.add(suberror);
+
+				response.setSuberror(suberrorList);
+
+				result =  Response.ok(response, MediaType.TEXT_XML).build();
+				
+			} else if(returnType.equals("application/json")) {
+				OpenAPIErrorResponseJson response =  new OpenAPIErrorResponseJson();
+				Json_Error json_error = new Json_Error();
+				
+				// suberror 만들기
+				List suberrorList = new ArrayList<Suberror>();
+				Suberror suberror = new Suberror();
+				suberror.setName(getVO.getW());
+				suberror.setCode(code);
+				
+				json_error.setCode(code);
+				if (code.equals("1000")){
+					json_error.setMessage(ERROR_TYPE.CODE_40001000.getErrorMessage());
+					suberror.setMessage(ERROR_TYPE.CODE_40001000.getErrorMessage());
+					logvo.setRESULT_CODE("40001000");
+					logger.debug("[RESULT CODE] 40001000");
+				} else {
+					json_error.setMessage(ERROR_TYPE.CODE_40003000.getErrorMessage());
+					suberror.setMessage(ERROR_TYPE.CODE_40003000.getErrorMessage());
+					logvo.setRESULT_CODE("40003000");
+					logger.debug("[RESULT CODE] 40003000");
+				}
+				suberrorList.add(suberror);
+
+				json_error.setSuberror(suberrorList);
+
+				response.setJson_Error(json_error);
+				result =  Response.ok(response, MediaType.APPLICATION_JSON).build();
+				
+			}
+			
+			return result;
+		} finally {
+//			logger.debug("=========================== DEBUG START ===========================");
+//			logger.debug("DEBUG 위치 : " + request.getServletPath());
+			logvo = logService.setCommonLog(logvo);
+			logvo.setRSP_TIME(logService.getNowDate(17)); 	// 사용자 요청 응답 발생시간
+			logService.writeLog(logvo,was_num);
+			logger.debug("======================== UFLIX MOBILE SERVICE API(GET) END   ========================");
+		}
+		
+	}
+	
+
+	
+	
+
+	
+	///////////////////////////////////////////// 인기검색어 검색 API /////////////////////////////////////////////
+	
+	/**
+	 * 유플릭스 인기검색어 - POST (xml, json)
+	 * @param returnType
+	 * @param w
+	 * @param cycle
+	 * @param date
+	 * @param pg
+	 * @param outmax
+	 * @param base64
+	 * @return
+	 */
+	@POST
+	@Consumes(MediaType.APPLICATION_FORM_URLENCODED)
+	@Path(searchPopWordUflixRequestURL)
+	public String popWordUflixSearchPostProcess(
+			@DefaultValue("text/xml") @HeaderParam("return-type") String returnType,
+			@HeaderParam("auth-key") String authKey,
+			@HeaderParam("encrypt-yn") String encryptYn,
+			@HeaderParam("unique_key") String uniqueKey,
+			@HeaderParam("user-sid") String userSid,
+			@HeaderParam("email") String email,
+			
+			@FormParam("w") String w,
+			@FormParam("cycle") String cycle,
+			@FormParam("date") String date,
+			@DefaultValue("1") @FormParam("pg") String pg,
+			@DefaultValue("20") @FormParam("outmax") String outmax,
+			@FormParam("base64") String base64
+			) {
+		logger.debug("================= UFLIX MOBILE BEST KEYWORD SERVICE API(POST) START   =================");
+//		Response result = null;
+		String result = null;
+		
+		// 파라미터 셋팅
+		PopkeywordVO vo = new PopkeywordVO();
+		vo.setReturnType(returnType);
+		vo.setAuthKey(authKey);
+		vo.setEncryptYn(encryptYn);
+		vo.setUniqueKey(uniqueKey);
+		vo.setUserSid(userSid);
+		vo.setEmail(email);
+		
+		vo.setW(w);
+		vo.setCycle(cycle);
+		vo.setDate(date);
+		vo.setPg(pg);
+		if ( outmax.equals("")) {
+			outmax="20";
+		}
+		vo.setOutmax(outmax);
+		vo.setBase64(base64);
+		
+		vo.setHost(searchHost);
+		vo.setPort(searchPort);
+		vo.setModel("uflix");
+		
+		String url = "/";
+		url += w+"/cycle="+cycle+"/date="+date+"/pg="+pg+"/outmax="+outmax+"/base64="+base64;
+		logger.debug("[CALL URL] " + url);
+		
+//		로그 기본 셋팅
+		LogVO logvo = new LogVO();
+		logvo.setREQ_TIME(logService.getNowDate(17)); 	// 사용자 요청 발생시간
+		logvo.setSID(uniqueKey);
+		logvo.setCTN(userSid); 	//
+		logvo.setONEID_EMAIL(email);
+		logvo.setSVC_TYPE("UFX");
+		logvo.setSVC_CMD("hotkeyword");
+		logvo.setSECTION("N");
+		try {
+			
+			// 검색 요청 변수 유효성 검사
+			vo = UtilManager.checkPopInfo(vo , "N", "uflix");	 // N : 디코드 안함 ,  Y : 디코드 처리
+			logvo.setKEYWORD("");
+			
+			if ( vo.hasErrorResponse() ) {	// 에러 O
+				
+				// suberror 만들기
+				List suberrorList = new ArrayList<Suberror>();
+				Suberror suberror = new Suberror();
+				suberror.setName(vo.getW());
+				suberror.setCode(vo.getErrorCode());
+				suberror.setMessage(vo.getErrorResponse());
+				suberrorList.add(suberror);
+				
+				if(returnType.equals("text/xml")) {
+					OpenAPIErrorResponse response =  new OpenAPIErrorResponse();
+					response.setCode(vo.getErrorCode());
+					response.setMessage(vo.getErrorResponse());
+					
+					response.setSuberror(suberrorList);
+					
+//					result =  Response.ok(response, MediaType.TEXT_XML).build();
+					result = getStringError(response);
+	
+				} else if(returnType.equals("application/json")) {
+					OpenAPIErrorResponseJson response =  new OpenAPIErrorResponseJson();
+					Json_Error json_error = new Json_Error();
+					json_error.setCode(vo.getErrorCode());
+					json_error.setMessage(vo.getErrorResponse());
+					
+					json_error.setSuberror(suberrorList);
+					
+					response.setJson_Error(json_error);
+//					result =  Response.ok(response, MediaType.APPLICATION_JSON).build();
+					result = getStringJsonError(response);
+				}
+				
+				logvo.setRESULT_CODE(vo.getErrorCode());
+				logger.debug("[RESULT CODE] "+vo.getErrorCode());
+			}	// 에러 O ------ (END) 
+			else {	// 에러 X
+				// 검색 수행
+				if(returnType.equals("text/xml")) {
+					OpenAPIPopWordResponse popWordResponse =  popService.search(vo);
+					
+					if ( popWordResponse.getErrorResponse() != null ) {	// 검색 에러 O
+						OpenAPIErrorResponse response =  popWordResponse.getErrorResponse();
+						
+						// suberror 담기
+						List suberrorList = new ArrayList<Suberror>();
+						Suberror suberror = new Suberror();
+						suberror.setName(vo.getW());
+						suberror.setCode(response.getCode());
+						suberror.setMessage(response.getMessage());
+						suberrorList.add(suberror);
+
+						response.setSuberror(suberrorList);
+
+						
+//						result =  Response.ok(response, MediaType.TEXT_XML).build();
+						result = getStringError(response);
+						logvo.setRESULT_CODE(response.getCode());
+						logger.debug("[RESULT CODE] "+response.getCode());
+					} else {
+						if ( popWordResponse.getMeta_storage_list().get(0).getTotcnt().equals("0")) {	// 검색 결과 없을때
+//							
+//							result =  Response.ok(popWordResponse, MediaType.TEXT_XML).build();
+							result = getStringResponse(popWordResponse);
+							logvo.setRESULT_CODE("20001000");
+							logger.debug("[RESULT CODE] 20001000");
+
+						} else {
+//							result =  Response.ok(popWordResponse, MediaType.TEXT_XML).build();
+							result = getStringResponse(popWordResponse);
+							logvo.setRESULT_CODE("20000000");
+							logger.debug("[RESULT CODE] 20000000");
+						}
+					}
+					
+				} else if(returnType.equals("application/json")) {
+					OpenAPIPopWordResponseJson popWordResponse = popService.searchJson(vo);
+					
+					if ( popWordResponse.getErrorResponse() != null ) {	// 검색 에러 O
+						OpenAPIErrorResponseJson response =  popWordResponse.getErrorResponse();
+						
+						// suberror 담기
+						List suberrorList = new ArrayList<Suberror>();
+						Suberror suberror = new Suberror();
+						suberror.setName(vo.getW());
+						suberror.setCode(response.getJson_Error().getCode());
+						suberror.setMessage(response.getJson_Error().getMessage());
+						suberrorList.add(suberror);
+
+						Json_Error error = response.getJson_Error();
+						error.setSuberror(suberrorList);
+						response.setJson_Error(error);
+						
+//						result =  Response.ok(response, MediaType.APPLICATION_JSON).build();
+						result = getStringJsonError(response);
+						logvo.setRESULT_CODE(response.getJson_Error().getCode());
+						logger.debug("[RESULT CODE] "+response.getJson_Error().getCode());
+					} else {
+						if ( popWordResponse.getJson_Statis().getTotcnt().equals("0")) {	// 검색 결과 없을때
+							
+//							result =  Response.ok(popWordResponse, MediaType.APPLICATION_JSON).build();
+							result = getStringJsonResponse(popWordResponse);
+							logvo.setRESULT_CODE("20001000");
+							logger.debug("[RESULT CODE] 20001000");
+						} else {
+//							result = Response.ok(popWordResponse, MediaType.APPLICATION_JSON).build();
+							result = getStringJsonResponse(popWordResponse);
+							logvo.setRESULT_CODE("20000000");
+							logger.debug("[RESULT CODE] 20000000");
+						}
+					}
+					
+				}
+			}	// 에러 X ------ (END)
+			return result;
+		} catch (Exception e) {
+			logger.debug("[EXCEPTION START]");
+			logger.debug("EXCEPTION 내용 : \n" + e.toString());
+			
+			if(returnType.equals("text/xml")) {
+				OpenAPIErrorResponse response =  new OpenAPIErrorResponse();
+				// suberror 만들기
+				List suberrorList = new ArrayList<Suberror>();
+				Suberror suberror = new Suberror();
+				suberror.setName(vo.getW());
+				suberror.setCode("3000");
+
+				
+				response.setCode("3000");
+				response.setMessage(ERROR_TYPE.CODE_40003000.getErrorMessage());
+				suberror.setMessage(ERROR_TYPE.CODE_40003000.getErrorMessage());
+				logvo.setRESULT_CODE("40003000");
+				logger.debug("[RESULT CODE] 40003000");
+				
+				suberrorList.add(suberror);
+
+				response.setSuberror(suberrorList);
+
+//				result =  Response.ok(response, MediaType.TEXT_XML).build();
+				try {
+					result = getStringError(response);
+				} catch (Exception e1) {
+					// TODO Auto-generated catch block
+					logger.debug("EXCEPTION 내용 : Dont make xml response \n" + e.toString());
+				}
+
+			} else if(returnType.equals("application/json")) {
+				OpenAPIErrorResponseJson response =  new OpenAPIErrorResponseJson();
+				Json_Error json_error = new Json_Error();
+				// suberror 만들기
+				List suberrorList = new ArrayList<Suberror>();
+				Suberror suberror = new Suberror();
+				suberror.setName(vo.getW());
+				suberror.setCode("3000");
+				
+				json_error.setCode("3000");
+				json_error.setMessage(ERROR_TYPE.CODE_40003000.getErrorMessage());
+				suberror.setMessage(ERROR_TYPE.CODE_40003000.getErrorMessage());
+				logvo.setRESULT_CODE("40003000");
+				logger.debug("[RESULT CODE] 40003000");
+				suberrorList.add(suberror);
+
+				json_error.setSuberror(suberrorList);
+
+				response.setJson_Error(json_error);
+//				result =  Response.ok(response, MediaType.APPLICATION_JSON).build();
+				try {
+					result = getStringJsonError(response);
+				} catch (Exception e1) {
+					// TODO Auto-generated catch block
+					logger.debug("EXCEPTION 내용 : Dont make xml response \n" + e.toString());
+				}
+			}
+			return result;
+		} finally {
+//			logger.debug("=========================== DEBUG START ===========================");
+//			logger.debug("DEBUG 위치 : " + request.getServletPath());
+			logvo = logService.setCommonLog(logvo);
+			logvo.setRSP_TIME(logService.getNowDate(17)); 	// 사용자 요청 응답 발생시간
+			logService.writeLog(logvo,was_num);
+			logger.debug("================= UFLIX MOBILE BEST KEYWORD SERVICE API(POST) END   =================");
+		}
+		
+	}
+	
+	/**
+	 * 유플릭스 인기검색어 - GET (xml, json)
+	 * @param returnType
+	 * @param w
+	 * @param cycle
+	 * @param date
+	 * @param pg
+	 * @param outmax
+	 * @param base64
+	 * @return
+	 */
+	@GET
+	@Path(searchPopWordUflixRequestURL+"/{w}/{cycle}/{date}/{pg}/{outmax}/{base64}")
+	public String popWordUfilixSearchGetProcess( 
+			@DefaultValue("text/xml") @HeaderParam("return-type") String returnType,
+			@HeaderParam("auth-key") String authKey,
+			@HeaderParam("encrypt-yn") String encryptYn,
+			@HeaderParam("unique_key") String uniqueKey,
+			@HeaderParam("user-sid") String userSid,
+			@HeaderParam("email") String email,
+			
+			@PathParam("w") String w, 
+			@PathParam("cycle") String cycle, 
+			@PathParam("date") String date,
+			@PathParam("pg") String pg, 
+			@PathParam("outmax") String outmax, 
+			@PathParam("base64") String base64
+			) {
+		logger.debug("============== UFLIX MOBILE BEST KEYWORD SERVICE API(GET) START   ==============");
+//		Response result = null;
+		String result = "";
+		
+		// get파라미터 셋팅
+		PopkeywordVO getVO = new PopkeywordVO();
+		getVO.setReturnType(returnType);
+		getVO.setAuthKey(authKey);
+		getVO.setEncryptYn(encryptYn);
+		getVO.setUniqueKey(uniqueKey);
+		getVO.setUserSid(userSid);
+		getVO.setEmail(email);
+		
+		getVO.setW(w);
+		getVO.setCycle(cycle.replaceFirst("cycle=", ""));
+		getVO.setDate((date+"").replaceFirst("date=", ""));
+		getVO.setPg(pg.replaceFirst("pg=", ""));
+		getVO.setOutmax(outmax.replaceFirst("outmax=", ""));
+		if ( outmax !=null && !outmax.equals("")) {
+			outmax="20";
+		}
+		getVO.setBase64(base64.replaceFirst("base64=", ""));
+		
+		getVO.setHost(searchHost);
+		getVO.setPort(searchPort);
+		getVO.setModel("uflix");
+		
+		String url = "/";
+		url += w+"/"+cycle+"/"+date+"/"+pg+"/outmax="+getVO.getOutmax()+"/"+base64;
+		logger.debug("[CALL URL] " + url);
+		
+		//		로그 기본 셋팅
+		LogVO logvo = new LogVO();
+		logvo.setREQ_TIME(logService.getNowDate(17)); 	// 사용자 요청 발생시간
+		logvo.setSID(uniqueKey);
+		logvo.setCTN(userSid); 	//
+		logvo.setONEID_EMAIL(email);
+		logvo.setSVC_TYPE("UFX");
+		logvo.setSVC_CMD("hotkeyword");
+			logvo.setSECTION("N");
+		try {
+			
+			// 검색 요청 변수 유효성 검사
+			getVO = UtilManager.checkPopInfo(getVO,"N", "uflix");	 // N : 디코드 안함 ,  Y : 디코드 처리
+			logvo.setKEYWORD("");
+			if ( getVO.hasErrorResponse() ) {	// 에러 O
+				
+				// suberror 만들기
+				List suberrorList = new ArrayList<Suberror>();
+				Suberror suberror = new Suberror();
+				suberror.setName(getVO.getW());
+				suberror.setCode(getVO.getErrorCode());
+				suberror.setMessage(getVO.getErrorResponse());
+				suberrorList.add(suberror);
+				
+				if(returnType.equals("text/xml")) {
+					OpenAPIErrorResponse response =  new OpenAPIErrorResponse();
+					response.setCode(getVO.getErrorCode());
+					response.setMessage(getVO.getErrorResponse());
+					
+					response.setSuberror(suberrorList);
+					
+//					result =  Response.ok(response, MediaType.TEXT_XML).build();
+					result = getStringError(response);
+	
+				} else if(returnType.equals("application/json")) {
+					OpenAPIErrorResponseJson response =  new OpenAPIErrorResponseJson();
+					Json_Error json_error = new Json_Error();
+					json_error.setCode(getVO.getErrorCode());
+					json_error.setMessage(getVO.getErrorResponse());
+					
+					json_error.setSuberror(suberrorList);
+					
+					response.setJson_Error(json_error);
+//					result =  Response.ok(response, MediaType.APPLICATION_JSON).build();
+					result = getStringJsonError(response);
+				}
+				logvo.setRESULT_CODE(getVO.getErrorCode());
+				logger.debug("[RESULT CODE] "+getVO.getErrorCode());
+				
+			}	// 에러 O ------ (END) 
+			else {	// 에러 X
+				// 검색 수행
+				if(returnType.equals("text/xml")) {
+					OpenAPIPopWordResponse popWordResponse =  popService.search(getVO);
+					
+					if ( popWordResponse.getErrorResponse() != null ) {	// 검색 에러 O
+						OpenAPIErrorResponse response =  popWordResponse.getErrorResponse();
+						
+						// suberror 담기
+						List suberrorList = new ArrayList<Suberror>();
+						Suberror suberror = new Suberror();
+						suberror.setName(getVO.getW());
+						suberror.setCode(response.getCode());
+						suberror.setMessage(response.getMessage());
+						suberrorList.add(suberror);
+
+						response.setSuberror(suberrorList);
+						
+//						result =  Response.ok(response, MediaType.TEXT_XML).build();
+						result = getStringError(response);
+						logvo.setRESULT_CODE(response.getCode());
+						logger.debug("[RESULT CODE] "+response.getCode());
+					} else {
+						if ( popWordResponse.getMeta_storage_list().get(0).getTotcnt().equals("0")) {	// 검색 결과 없을때
+							
+//							result =  Response.ok(popWordResponse, MediaType.TEXT_XML).build();
+							result = getStringResponse(popWordResponse);
+							logvo.setRESULT_CODE("20001000");
+							logger.debug("[RESULT CODE] 20001000");
+						} else {
+//							result =  Response.ok(popWordResponse, MediaType.TEXT_XML).build();
+							result = getStringResponse(popWordResponse);
+							logvo.setRESULT_CODE("20000000");
+							logger.debug("[RESULT CODE] 20000000");
+						}
+					}
+					
+				} else if(returnType.equals("application/json")) {
+					OpenAPIPopWordResponseJson popWordResponse = popService.searchJson(getVO);
+					
+					
+					if ( popWordResponse.getErrorResponse() != null ) {	// 검색 에러 O
+						OpenAPIErrorResponseJson response =  popWordResponse.getErrorResponse();
+						
+						// suberror 담기
+						List suberrorList = new ArrayList<Suberror>();
+						Suberror suberror = new Suberror();
+						suberror.setName(getVO.getW());
+						suberror.setCode(response.getJson_Error().getCode());
+						suberror.setMessage(response.getJson_Error().getMessage());
+						suberrorList.add(suberror);
+
+						Json_Error error = response.getJson_Error();
+						error.setSuberror(suberrorList);
+						response.setJson_Error(error);
+						
+//						result =  Response.ok(response, MediaType.APPLICATION_JSON).build();
+						result = getStringJsonError(response);
+						logvo.setRESULT_CODE(response.getJson_Error().getCode());
+						logger.debug("[RESULT CODE] "+response.getJson_Error().getCode());
+						
+					} else {
+						if ( popWordResponse.getJson_Statis().getTotcnt().equals("0")) {	// 검색 결과 없을때
+							
+//							result =  Response.ok(popWordResponse, MediaType.APPLICATION_JSON).build();
+							result = getStringJsonResponse(popWordResponse);
+							logvo.setRESULT_CODE("20001000");
+							logger.debug("[RESULT CODE] 20001000");
+						} else {
+//							result = Response.ok(popWordResponse, MediaType.APPLICATION_JSON).build();
+							result = getStringJsonResponse(popWordResponse);
+							logvo.setRESULT_CODE("20000000");
+							logger.debug("[RESULT CODE] 20000000");
+						}
+					}
+					
+				}
+			}	// 에러 X ------ (END)
+			return result;
+		} catch (Exception e) {
+			logger.debug("[EXCEPTION START]");
+//			logger.error("EXCEPTION 위치 : " + request.getServletPath());
+			logger.debug("EXCEPTION 내용 : \n" + e.toString());
+			if(returnType.equals("text/xml")) {
+				OpenAPIErrorResponse response =  new OpenAPIErrorResponse();
+				// suberror 만들기
+				List suberrorList = new ArrayList<Suberror>();
+				Suberror suberror = new Suberror();
+				suberror.setName(getVO.getW());
+				suberror.setCode("3000");
+				
+				response.setCode("3000");
+				response.setMessage(ERROR_TYPE.CODE_40003000.getErrorMessage());
+				suberror.setMessage(ERROR_TYPE.CODE_40003000.getErrorMessage());
+				logvo.setRESULT_CODE("40003000");
+				logger.debug("[RESULT CODE] 40003000");
+				suberrorList.add(suberror);
+
+				response.setSuberror(suberrorList);
+
+//				result =  Response.ok(response, MediaType.TEXT_XML).build();
+				try {
+					result = getStringError(response);
+				} catch (Exception e1) {
+					// TODO Auto-generated catch block
+					logger.debug("EXCEPTION 내용 : Dont make xml response \n" + e.toString());
+				}
+
+			} else if(returnType.equals("application/json")) {
+				OpenAPIErrorResponseJson response =  new OpenAPIErrorResponseJson();
+				Json_Error json_error = new Json_Error();
+				// suberror 만들기
+				List suberrorList = new ArrayList<Suberror>();
+				Suberror suberror = new Suberror();
+				suberror.setName(getVO.getW());
+				suberror.setCode("3000");
+				
+				json_error.setCode("3000");
+				json_error.setMessage(ERROR_TYPE.CODE_40003000.getErrorMessage());
+				suberror.setMessage(ERROR_TYPE.CODE_40003000.getErrorMessage());
+				logvo.setRESULT_CODE("40003000");
+				logger.debug("[RESULT CODE] 40003000");
+				suberrorList.add(suberror);
+
+				json_error.setSuberror(suberrorList);
+
+				response.setJson_Error(json_error);
+//				result =  Response.ok(response, MediaType.APPLICATION_JSON).build();
+				try {
+					result = getStringJsonError(response);
+				} catch (Exception e1) {
+					// TODO Auto-generated catch block
+					logger.debug("EXCEPTION 내용 : Dont make xml response \n" + e.toString());
+				}
+			}
+			return result;
+		} finally {
+//			logger.debug("=========================== DEBUG START ===========================");
+//			logger.debug("DEBUG 위치 : " + request.getServletPath());
+			logvo = logService.setCommonLog(logvo);
+			logvo.setRSP_TIME(logService.getNowDate(17)); 	// 사용자 요청 응답 발생시간
+			logService.writeLog(logvo,was_num);
+			logger.debug("============== UFLIX MOBILE BEST KEYWORD SERVICE API(GET) END   ==============");
+		}
+				
+	}
+	
+	@POST
+	@Produces(MediaType.APPLICATION_JSON)
+	@Path(videoHangCheckRequestURL)
+	public String naviHangCheckProcess(String input, @Context HttpServletRequest request, @Context UriInfo uriInfo) throws InterruptedException {
+		input = input.trim();
+		
+		String result = aliveCheckResponseMessage;
+//		Thread.sleep(10000000);
+		/*if(ConstantManager.isPropertiesOK() == false) {
+			return propertiesErrorResponseMessage;
+		}
+		else {
+			LogManager.deleteBeforeLog();
+			
+			if(input.equalsIgnoreCase(aliveCheckMessage) == false) {
+				return "";
+			}
+		}*/
+		
+		
+		
+		return result;
+	}
+	
+	
+	/**
+	 * wastest
+	 * @param input
+	 * @param request
+	 * @param uriInfo
+	 * @return
+	 */
+	
+	@GET
+	@Path(searchTestRequestURL)
+	public String getAsText() {
+		System.out.println("호출");
+		try {
+//			Thread.sleep(10000000);
+			System.out.println("정상호출끝");
+			return "호출성공";
+			// TODO Auto-generated catch block
+		}finally {
+			
+		}
+		
+	}
+	
+	
+	public String getStringResponse(OpenAPIPopWordResponse result) throws Exception {
+		
+		JAXBContext jaxbContext = JAXBContext.newInstance(OpenAPIPopWordResponse.class);
+	    Marshaller marshaller = jaxbContext.createMarshaller();
+	    marshaller.setProperty(Marshaller.JAXB_FORMATTED_OUTPUT, true);
+	    marshaller.setProperty(CharacterEscapeHandler.class.getName(), new CharacterEscapeHandler() { 
+	        public void escape(char[] ac, int i, int j, boolean flag,
+	        Writer writer) throws IOException {
+	        writer.write( ac, i, j ); }
+	        });
+	    StringWriter stringWriter = new StringWriter(); 
+	    marshaller.marshal(result, stringWriter);
+//	    System.out.println(stringWriter.toString());
+	    return stringWriter.toString();
+
+}
+
+public String getStringError(OpenAPIErrorResponse result) throws Exception {
+	
+	JAXBContext jaxbContext = JAXBContext.newInstance(OpenAPIErrorResponse.class);
+    Marshaller marshaller = jaxbContext.createMarshaller();
+    marshaller.setProperty(Marshaller.JAXB_FORMATTED_OUTPUT, true);
+    marshaller.setProperty(CharacterEscapeHandler.class.getName(), new CharacterEscapeHandler() { 
+        public void escape(char[] ac, int i, int j, boolean flag,
+        Writer writer) throws IOException {
+        writer.write( ac, i, j ); }
+        });
+    StringWriter stringWriter = new StringWriter(); 
+    marshaller.marshal(result, stringWriter);
+//    System.out.println(stringWriter.toString());
+    return stringWriter.toString();
+
+}
+
+	public String getStringJsonResponse(OpenAPIPopWordResponseJson result) throws Exception {
+		
+		ObjectMapper mapper = new ObjectMapper();
+
+		//Object to JSON in String
+		String jsonInString = mapper.writeValueAsString(result);
+		
+	    return jsonInString;
+
+	}
+	
+	public String getStringJsonError(OpenAPIErrorResponseJson result) throws Exception {
+		
+		ObjectMapper mapper = new ObjectMapper();
+
+		//Object to JSON in String
+		String jsonInString = mapper.writeValueAsString(result);
+		
+	    return jsonInString;
+
+	}
+	
+}
